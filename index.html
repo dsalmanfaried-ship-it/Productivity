@@ -134,6 +134,12 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 @media (prefers-reduced-motion:reduce){.tsw,.tsy{animation:none}.tg{transition:none!important}}
 .big:disabled{opacity:.6;box-shadow:none;transform:none;cursor:default}
 .big-t svg{width:100%}
+/* زرار ريّح */
+.chip.rih{background:linear-gradient(135deg,#ffd45e,#ff9d5c);color:#4a2a00;font-weight:800;box-shadow:0 4px 0 #c97a2b;animation:rwob 2.6s ease-in-out infinite;transition:transform .08s,box-shadow .08s}
+.chip.rih:active{transform:translateY(3px) scale(.97);box-shadow:0 1px 0 #c97a2b;animation:none}
+@keyframes rwob{0%,34%,100%{transform:rotate(0) scale(1)}6%{transform:rotate(-7deg) scale(1.06)}12%{transform:rotate(7deg) scale(1.06)}18%{transform:rotate(-5deg)}24%{transform:rotate(4deg)}30%{transform:rotate(-2deg)}}
+.rihint{text-align:center;color:var(--mute);font-size:12.5px;margin:-2px 0 10px}
+@media (prefers-reduced-motion:reduce){.chip.rih{animation:none}}
 /* login gate */
 #gate{position:fixed;inset:0;z-index:25;display:none;align-items:center;justify-content:center;padding:24px;overflow:hidden;background:radial-gradient(900px 520px at 50% 16%,#25906a 0%,#154d3b 45%,#0f3a2d 78%)}
 #gate.on{display:flex;animation:gfade .5s ease both}
@@ -550,7 +556,8 @@ const RESTS=[5,10,15,20];
 function restSheet(){
  sheet(`<h2>☕ بريك المذاكرة</h2><p class="muted">اختار مدة البريك:</p>
  ${duhaNow(Date.now())?`<p class="muted">☀️ دلوقتي وقت الضحى (لحد ${pFmt(pToday().t.duhaE,pLoc().tz)}) – ممكن تصلّيها في أي بريك.</p>`:''}
- <div class="chips">${RESTS.map(m=>`<button class="chip" data-act="rest" data-v="${m}" style="${S.brkLast===m?'outline:2px solid var(--leaf)':''}">${m} دقيقة</button>`).join('')}</div>
+ <div class="chips">${RESTS.map(m=>`<button class="chip" data-act="rest" data-v="${m}" style="${S.brkLast===m?'outline:2px solid var(--leaf)':''}">${m} دقيقة</button>`).join('')}<button class="chip rih" data-act="rih">🛋️ ريّح يا بطل</button></div>
+ <p class="rihint">زرار "ريّح": بريك ${S.brkLast||10} دقايق + سورة يس، وإنت ماتعملش حاجة 😌</p>
  ${YASIN.length?`<div class="row ${S.yasin.on?'sel':''}" data-act="yopt2">🎧 سورة يس أثناء البريك (شيخ عشوائي، اختياري): ${S.yasin.on?'شغّال':'مقفول'}</div>${S.yasin.on?`<div class="row ${S.yasin.auto!==false?'sel':''}" data-act="yauto">▶ تشغيل تلقائي أول البريك: ${S.yasin.auto!==false?'تلقائي':'يدوي'}</div>`:''}`:''}
  <button class="big ghost" data-act="close">إلغاء</button>`);
 }
@@ -559,6 +566,18 @@ function startRest(m){
  S.rest={start:Date.now(),dur:m*60000};S.brkLast=m;save();
  closeSheet();tab='focus';render();beginRestTick();
  if(S.yasin.on&&YASIN.length)yStart();
+}
+let rihPrev=null;
+const RIH_JOKES=['الدماغ دخلت الصيانة 🛠️ ماتزعّلهاش','حتى الشجرة بتاخد نفس 🌳😮‍💨','الكتاب مش هيهرب… ريّح 📚','فصلت الشحن 🔌 خد نفسك يا وحش','الكنبة بتنادي عليك 🛋️ ردّ عليها','اللي ذاكر كويس يستاهل يتمدد 😌','ريّح… المنهج هيستنّاك 😂'];
+function riah(){
+ if(S.active)return;
+ const m=S.brkLast||10,j=RIH_JOKES[Math.floor(Math.random()*RIH_JOKES.length)];
+ if(!YASIN.length){startRest(m);toast(j+' (مفيش ملفات يس هنا)');return}
+ rihPrev=S.yasin.on;const pa=S.yasin.auto;
+ S.yasin.on=true;S.yasin.auto=true;
+ startRest(m);
+ S.yasin.auto=pa;save();
+ toast(j);
 }
 function beginRestTick(){clearInterval(restT);restT=setInterval(restTick,500);restTick()}
 function restTick(){
@@ -571,7 +590,9 @@ function restTick(){
  document.title='☕ '+fmt(remain);
 }
 function endRest(auto){
- clearInterval(restT);yStop();S.rest=null;save();
+ clearInterval(restT);yStop();S.rest=null;
+ if(rihPrev!==null){S.yasin.on=rihPrev;rihPrev=null}
+ save();
  document.title='غابتي – تركيز وإنتاجية';
  if(auto){chime(true);toast('خلص البريك ☕ يلا نرجع للتركيز 🌱')}
  render();
@@ -803,6 +824,7 @@ document.addEventListener('click',e=>{
   case 'ytoggle':if(yOn){S.yasin.t=yu.currentTime||S.yasin.t;yu.pause();yOn=false;save();yUI()}else if(S.yasin.cur==null)yStart(true);else yPlay();break;
   case 'restSheet':restSheet();break;
   case 'rest':startRest(+v);break;
+  case 'rih':riah();break;
   case 'endRest':endRest(false);break;
   case 'yauto':S.yasin.auto=S.yasin.auto===false;save();restSheet();break;
   case 'yopt2':S.yasin.on=!S.yasin.on;save();restSheet();break;
