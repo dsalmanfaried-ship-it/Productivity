@@ -1,22 +1,25 @@
-إصلاح إشعارات غابتي
+تذكيرات غابتي عبر بوت تيليجرام
 
 الملفات:
-1) index.html
-2) notifications.js
-3) sw.js
-4) firestore-rules.txt (للمراجعة فقط؛ لا تغيّر القواعد إن كانت منشورة بالفعل)
+1) notifications.js  (جنب index.html)
+2) send-reminders.mjs (مكان القديم في المستودع، نفس المسار)
+3) firestore-rules.txt (انشرها في Firebase)
 
-خطوات الرفع:
-1. ارفع index.html مكان الملف الحالي.
-2. ارفع notifications.js بجوار index.html في نفس مجلد الموقع.
-3. استبدل sw.js بالنسخة الموجودة هنا.
-4. انتظر اكتمال نشر GitHub Pages، ثم افتح الموقع في Chrome وحدّثه تحديثًا كاملًا.
-5. سجّل الدخول، ثم افتح «حسابي» واضغط «تفعيل إشعارات المذاكرة».
+الخطوات:
+1. اسم البوت (FORESTsolybot) متظبط جوه notifications.js في سطر BOT_USERNAME_RAW.
+2. افتح Firebase Console > Firestore Database > Rules والصق محتوى firestore-rules.txt واضغط Publish.
+   مهم: القواعد القديمة ماكانتش بتسمح بمسار users/{uid}/settings، فالحفظ كان بيفشل بـ permission-denied.
+3. ارفع الملفين (notifications.js و send-reminders.mjs) على GitHub، وحدّث الموقع تحديث كامل.
+4. اتأكد إن في GitHub Secrets: FIREBASE_SERVICE_ACCOUNT و TELEGRAM_BOT_TOKEN.
 
-مهم:
-- لم أغيّر تصميم التطبيق أو كود تسجيل الدخول أو مزامنة بيانات الغابة.
-- تم إصلاح اختلاف Firebase apiKey داخل sw.js، وزيادة رقم الكاش إلى v14.
-- تم جعل زر التفعيل ينتظر تجهيز Firebase Messaging.
-- المفتاح الموجود في VAPID_KEY نُقل كما هو من الملف الذي أرسلته. لا أستطيع التأكد من مطابقته لمفتاح Firebase Console من الملفات وحدها.
-- إذا استمرت رسالة المفتاح، افتح Firebase Console > Project settings > Cloud Messaging > Web Push certificates، وانسخ «Key pair» العام فقط إلى VAPID_KEY داخل notifications.js. لا ترسل أي مفتاح خاص أو Service Account.
-- الإشعارات التي تصل أثناء إغلاق الموقع تحتاج أيضًا إلى جهة إرسال موثوقة (مثل Cloud Functions/خادم)؛ تفعيل الاشتراك وحده لا ينشئ مواعيد الإشعارات.
+إزاي بيشتغل:
+- المستخدم يفتح غابتي > حسابي > إعدادات الإشعارات > "افتح البوت واضغط Start".
+  البوت بيربط حسابه تلقائي ويرد عليه برقمه، وبعدها بيبعتله التذكيرات في المواعيد اللي اختارها.
+- أي حد يبعت رسالة للبوت من غير ربط، البوت يرد عليه برقمه (Chat ID) يلصقه في الإعدادات بنفسه.
+- /stop في البوت بيوقف التذكيرات.
+- البوت بيرد وبيبعت لما GitHub Actions يشتغل (كل 5 دقايق تقريبًا، وممكن يتأخر أكتر). عشان كده الرد مش فوري.
+- لو البوت عليه webhook، امسحه (deleteWebhook) وإلا مش هيعرف يقرأ الرسائل.
+- لا تبعت توكن البوت ولا مفتاح الخدمة لأي حد.
+
+مفتاح VAPID في notifications.js سليم من ناحية الشكل (٦٥ بايت على منحنى P-256)، لكن مفيش طريقة أتأكد من الملفات إنه بتاع مشروعك.
+لو فشل Push، قارنه بـ Firebase Console > Project settings > Cloud Messaging > Web Push certificates.

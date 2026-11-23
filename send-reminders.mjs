@@ -1,6 +1,6 @@
 // يشتغل كل 5 دقايق من GitHub Actions:
-// 1) يربط تيليجرام تلقائيًا لما المستخدم يضغط Start من رابط التطبيق
-// 2) يبعت التذكيرات (تيليجرام + Push المتصفح). الأسرار من GitHub Secrets فقط.
+// يبعت التذكيرات (تيليجرام على الرقم اللي المستخدم كتبه + Push المتصفح).
+// الأسرار من GitHub Secrets فقط.
 import admin from "firebase-admin";
 
 const SA = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -11,7 +11,6 @@ const WINDOW_MIN = Number(process.env.WINDOW_MIN || 14);
 if (!SA) { console.error("FIREBASE_SERVICE_ACCOUNT secret is missing"); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(SA)) });
 const db = admin.firestore();
-const FV = admin.firestore.FieldValue;
 
 const MESSAGES = [
   "حان وقت التركيز 🌳 افتح غابتي وابدأ جلسة جديدة.",
@@ -103,6 +102,61 @@ async function sendPush(userRef, title, body) {
   return r.successCount > 0;
 }
 
+// ---- ردود البوت: أي حد يكلّم البوت يستلم رقمه (Chat ID)، و/start CODE بيربط حسابه تلقائي، و/stop بيوقف التذكيرات ----
+// <handleUpdates>
+const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const LINK_RE = /^[A-Za-z0-9_-]{12,64}$/;
+async function handleUpdates(updates, entries, send, del) {
+  const replied = new Set();
+  for (const u of updates) {
+    const m = u && u.message;
+    if (!m || !m.chat || m.chat.type !== "private" || typeof m.text !== "string") continue;
+    const id = String(m.chat.id);
+    const [cmdRaw, argRaw] = m.text.trim().split(/\s+/, 2);
+    const cmd = (cmdRaw || "").toLowerCase().replace(/@\w+$/, "");
+    const arg = argRaw || "";
+    const mine = entries.filter(e => String(e.cfg.chatId || "") === id);
+    let text;
+
+    if (cmd === "/stop") {
+      for (const e of mine) { await e.ref.set({ chatId: del() }, { merge: true }); delete e.cfg.chatId; }
+      text = mine.length
+        ? "تمام ✅ وقّفت التذكيرات على التليجرام. تقدر ترجّعها في أي وقت من غابتي ← حسابي ← إعدادات الإشعارات."
+        : "مفيش تذكيرات شغالة على الحساب ده.";
+    } else if (cmd === "/start" && LINK_RE.test(arg) && entries.some(e => e.cfg.linkCode === arg)) {
+      const e = entries.find(x => x.cfg.linkCode === arg);
+      await e.ref.set({ chatId: id, linkCode: del() }, { merge: true });
+      e.cfg.chatId = id; delete e.cfg.linkCode;
+      text = "اتربط حسابك في غابتي ✅\nهتوصلك التذكيرات هنا في المواعيد اللي اخترتها.\n\nرقمك (Chat ID): <code>" + esc(id) + "</code>\nلإيقاف التذكيرات ابعت /stop";
+    } else if (mine.length) {
+      text = "حسابك مربوط بغابتي ✅ هتوصلك التذكيرات هنا.\nرقمك (Chat ID): <code>" + esc(id) + "</code>\nلإيقاف التذكيرات ابعت /stop";
+    } else {
+      text = "أهلاً بيك في غابتي 🌳\nرقمك (Chat ID): <code>" + esc(id) + "</code>\n\nانسخ الرقم (دوس عليه) والصقه في غابتي ← حسابي ← إعدادات الإشعارات ← رقم تيليجرام، واضغط حفظ. بعدها التذكيرات هتوصلك هنا في المواعيد اللي تختارها.";
+    }
+    if (replied.has(id)) continue;
+    replied.add(id);
+    await send({ chat_id: id, text, parse_mode: "HTML" });
+  }
+}
+// </handleUpdates>
+
+async function pollTelegram(entries) {
+  if (!BOT) return;
+  const r = await tg("getUpdates", { timeout: 0, limit: 100, allowed_updates: ["message"] });
+  if (!r.ok) {
+    if (r.error_code === 409) console.warn("Telegram: البوت عليه webhook شغال. امسحه بـ deleteWebhook عشان البوت يرد.");
+    return;
+  }
+  const updates = r.result || [];
+  if (!updates.length) return;
+  try {
+    await handleUpdates(updates, entries, b => tg("sendMessage", b), () => admin.firestore.FieldValue.delete());
+  } catch (e) { console.warn("telegram updates error:", e.message); }
+  // تأكيد استلام التحديثات عشان ما تتكررش
+  await tg("getUpdates", { offset: Math.max(...updates.map(x => x.update_id)) + 1, limit: 1, timeout: 0 });
+  console.log(`telegram: handled ${updates.length} update(s)`);
+}
+
 // ---- تحميل إعدادات كل المستخدمين ----
 const entries = [];
 for (const userRef of await db.collection("users").listDocuments()) {
@@ -111,37 +165,7 @@ for (const userRef of await db.collection("users").listDocuments()) {
   if (snap.exists) entries.push({ userRef, ref, cfg: snap.data() });
 }
 
-// ---- ربط تيليجرام تلقائيًا ----
-if (BOT) {
-  const me = await tg("getMe");
-  const botName = me.result?.username;
-  if (botName) {
-    for (const e of entries) if (e.cfg.botUsername !== botName) {
-      await e.ref.set({ botUsername: botName }, { merge: true });
-      e.cfg.botUsername = botName;
-    }
-  }
-  const upd = await tg("getUpdates", { timeout: 0, allowed_updates: ["message"] });
-  let last = 0;
-  for (const u of upd.result || []) {
-    last = Math.max(last, u.update_id);
-    const m = u.message;
-    if (!m || m.chat?.type !== "private") continue;
-    const text = m.text || "";
-    if (!/^\/start/.test(text)) continue;
-    const code = (text.match(/^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,32})$/) || [])[1];
-    const e = code && entries.find(x => x.cfg.linkCode === code && Date.now() - (x.cfg.linkAt || 0) < 24 * 3600 * 1000);
-    if (e) {
-      await e.ref.set({ chatId: String(m.chat.id), linkCode: FV.delete(), linkAt: FV.delete() }, { merge: true });
-      e.cfg.chatId = String(m.chat.id);
-      await tg("sendMessage", { chat_id: m.chat.id, text: "تم ربط غابتي بتيليجرام ✅ هتوصلك التذكيرات هنا." });
-      console.log(`linked telegram for user ${e.userRef.id}`);
-    } else {
-      await tg("sendMessage", { chat_id: m.chat.id, text: "افتح غابتي: حسابي > إعدادات الإشعارات > ربط تيليجرام تلقائيًا، وبعدين اضغط الرابط اللي هيظهر." });
-    }
-  }
-  if (last) await tg("getUpdates", { offset: last + 1, timeout: 0 });
-}
+await pollTelegram(entries);
 
 // ---- إرسال التذكيرات ----
 let sent = 0;

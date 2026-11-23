@@ -14,7 +14,11 @@ const firebaseConfig = {
   appId: "1:872681239030:web:ed56a9cfd6994b317a57d7"
 };
 const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWxqDj70SnDwRxk7wINKrODmHl5PE";
+// اسم بوت تيليجرام بتاعك من غير @ (مثال: GhabatyBot). لو سيبته فاضي، الزرار مش هيظهر.
+const BOT_USERNAME_RAW = "FORESTsolybot";
+const BOT_USERNAME = /^[A-Za-z0-9_]{4,32}$/.test(BOT_USERNAME_RAW) ? BOT_USERNAME_RAW : "";
 const LS_KEY = "ghabaty-reminders";
+const newLinkCode = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -205,16 +209,8 @@ async function enablePush() {
 }
 
 /* ---------------- نافذة الإعدادات ---------------- */
-let pollTimer = null;
 function closeModal() {
-  clearInterval(pollTimer);
   document.getElementById("ntfModal")?.remove();
-}
-
-function newLinkCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return [...bytes].map(b => chars[b % chars.length]).join("");
 }
 
 async function openModal() {
@@ -234,9 +230,22 @@ async function openModal() {
     winEnd: cfg.winEnd || "22:00",
     times: new Set(Array.isArray(cfg.times) ? cfg.times : ["08:00", "20:00"]),
     randomMsg: cfg.randomMsg !== false,
-    chatId: cfg.chatId || "",
-    botUsername: cfg.botUsername || ""
+    chatId: cfg.chatId ? String(cfg.chatId) : ""
   };
+  let initialChat = st.chatId;
+  // كود ربط سري: البوت بيستخدمه لما المستخدم يدوس Start عشان يربط الحساب تلقائي
+  let linkCode = cfg.linkCode || "";
+  const fresh = BOT_USERNAME && !linkCode;
+  if (fresh) linkCode = newLinkCode();
+  const botHref = () => "https://t.me/" + BOT_USERNAME + (linkCode ? "?start=" + linkCode : "");
+  if (fresh) {
+    setDoc(settingsRef(), { linkCode }, { merge: true }).catch(e => {
+      console.warn("[Notifications] link code save failed", e);
+      linkCode = "";
+      const a = document.getElementById("ntfBot");
+      if (a) a.href = botHref();
+    });
+  }
 
   const wrap = document.createElement("div");
   wrap.id = "ntfModal";
@@ -281,12 +290,15 @@ async function openModal() {
     <input id="ntfMsg" style="${field}" placeholder="اكتب نص التذكير">
 
     <hr style="width:100%;border:0;border-top:1px solid #3d7a56">
-    <div id="tgStatus"></div>
-    <button id="tgLink" style="${btn};background:#2f6b4a;color:#fff">🔗 ربط تيليجرام تلقائيًا</button>
-    <div id="tgHelp" style="display:none;gap:8px;flex-direction:column"></div>
-    <details><summary>أو اكتب رقم Chat ID يدويًا</summary>
-      <input id="ntfChat" inputmode="numeric" style="${field};margin-top:6px" placeholder="مثال: 123456789">
-    </details>
+    <div style="font-weight:700">✈️ تذكيرات تيليجرام</div>
+    ${BOT_USERNAME ? `
+    <a id="ntfBot" href="${botHref()}" target="_blank" rel="noopener" style="${btn};background:#2f6b4a;color:#fff;text-align:center;text-decoration:none;display:block">🤖 افتح البوت واضغط Start</a>
+    <small style="opacity:.85">بعد Start البوت بيربط حسابك تلقائي (ممكن ياخد كام دقيقة) ويبعتلك رقمك. وتقدر كمان تلصق الرقم تحت بنفسك.</small>
+    <button id="ntfCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>`
+    : `<small style="opacity:.85">ابعت أي رسالة للبوت وهيرد عليك برقمك (Chat ID)، والصقه تحت.</small>`}
+    <label>رقم تيليجرام (Chat ID)
+      <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
+    </label>
 
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
@@ -319,8 +331,6 @@ async function openModal() {
     $("#ntfMsg").style.display = st.randomMsg ? "none" : "block";
     $("#randMsg").checked = st.randomMsg;
 
-    $("#tgStatus").textContent = st.chatId ? "✅ تيليجرام متربط (رقم: " + st.chatId + ")" : "تيليجرام: لسه مش متربط";
-    $("#tgLink").textContent = st.chatId ? "🔁 إعادة الربط" : "🔗 ربط تيليجرام تلقائيًا";
     $("#ntfChat").value = st.chatId;
   }
   $("#ntfMsg").value = cfg.message || "";
@@ -342,50 +352,19 @@ async function openModal() {
     const v = $("#customTime").value;
     if (v) { st.times.add(v); $("#customTime").value = ""; render(); }
   };
-  $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); $("#tgStatus").textContent = st.chatId ? "✅ رقم: " + st.chatId : "تيليجرام: لسه مش متربط"; };
+  $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
-
-  // ربط تيليجرام تلقائيًا: التطبيق بيعمل كود، والمستخدم بيضغط Start، والسكربت بيكتب الرقم.
-  $("#tgLink").onclick = async () => {
-    const code = newLinkCode();
+  const chk = $("#ntfCheck");
+  if (chk) chk.onclick = async () => {
     try {
-      await setDoc(settingsRef(), { linkCode: code, linkAt: Date.now() }, { merge: true });
-    } catch (e) { notifyUser(explainError(e)); return; }
-    const help = $("#tgHelp");
-    help.style.display = "flex";
-    help.innerHTML = "";
-    const msg = document.createElement("div");
-    msg.style.cssText = "line-height:1.7";
-    if (st.botUsername) {
-      msg.textContent = "1) اضغط الزر وافتح البوت.  2) اضغط Start.  3) استنى لحد 5 دقايق وهيتربط لوحده.";
-      const a = document.createElement("a");
-      a.href = "https://t.me/" + st.botUsername + "?start=" + code;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = "✈️ افتح البوت واضغط Start";
-      a.style.cssText = "display:block;text-align:center;text-decoration:none;" + btn + ";background:#9be07a;color:#0e2a1e";
-      help.append(msg, a);
-    } else {
-      msg.textContent = "افتح البوت بتاعك في تيليجرام وابعتله الرسالة دي بالظبط:  /start " + code + "  (لو الرابط التلقائي مش ظاهر، شغّل Run workflow مرة من GitHub Actions وافتح النافذة تاني).";
-      help.append(msg);
-    }
-    clearInterval(pollTimer);
-    let tries = 0;
-    pollTimer = setInterval(async () => {
-      if (++tries > 60) { clearInterval(pollTimer); return; }
-      try {
-        const s = await getDoc(settingsRef());
-        const d = s.data() || {};
-        if (d.botUsername && !st.botUsername) st.botUsername = d.botUsername;
-        if (d.chatId && !d.linkCode) {
-          clearInterval(pollTimer);
-          st.chatId = String(d.chatId);
-          help.style.display = "none";
-          render();
-          notifyUser("تم ربط تيليجرام ✔");
-        }
-      } catch (e) { /* نكمل المحاولة */ }
-    }, 10000);
+      const snap = await getDoc(settingsRef());
+      const c = snap.exists() ? snap.data().chatId : "";
+      if (c) {
+        st.chatId = initialChat = String(c);
+        $("#ntfChat").value = st.chatId;
+        notifyUser("اتربط حسابك بتيليجرام ✔");
+      } else notifyUser("لسه ما اتربطش. دوس Start في البوت وجرّب بعد كام دقيقة.");
+    } catch (e) { notifyUser(explainError(e)); }
   };
 
   $("#ntfSave").onclick = async ev => {
@@ -403,9 +382,11 @@ async function openModal() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
       const data = {
         mode: st.mode, count: st.count, winStart: st.winStart, winEnd: st.winEnd,
-        times, randomMsg: st.randomMsg, message, chatId: st.chatId, tz,
+        times, randomMsg: st.randomMsg, message, tz,
         enabled: true, updatedAt: serverTimestamp()
       };
+      // ما نمسحش رقم اتربط تلقائي من البوت وإحنا فاتحين النافذة، إلا لو المستخدم مسحه بإيده
+      if (st.chatId || initialChat) data.chatId = st.chatId;
       await setDoc(settingsRef(), data, { merge: true });
       writeLocalCfg({ ...readLocalCfg(), ...data, updatedAt: undefined, uid: currentUser.uid });
       notifyUser("اتحفظت الإعدادات ✔");
