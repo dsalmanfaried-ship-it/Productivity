@@ -8,6 +8,12 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>غابتي – تركيز وإنتاجية</title>
+<meta name="description" content="غابتي: تطبيق تركيز زي Forest – شجرتك بتكبر وانت بتركّز، مع مواقيت الصلاة وتلاوات وفضل الصلاة.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="غابتي – تركيز وإنتاجية">
+<meta property="og:description" content="ازرع شجرتك وانت بتركّز، مع مواقيت الصلاة وبريك للصلاة والمذاكرة.">
+<meta property="og:image" content="icon-512.png">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -225,7 +231,7 @@ function offSheet(){
  sheet(`<h2>📥 تنزيل للاستخدام بدون إنترنت</h2><p class="muted">التلاوات بتتخزن على جهازك وبتشتغل من غير نت. (المواقيت والمؤقت والغابة والإحصائيات شغالين بدون نت أصلًا.)</p>${row('bq')}${row('ys')}<div id="offp" class="muted" style="margin:8px 0;min-height:20px"></div><button class="big" data-act="offDl" data-v="all">تنزيل الكل (حوالي ١٢٦ ميجا)</button><button class="big ghost" data-act="offClear">حذف التنزيلات</button><button class="big ghost" data-act="close">إغلاق</button>`);
 }
 
-async function checkFiles(){
+async function checkFiles(){try{YBAD.clear();localStorage.removeItem('forest-ybad')}catch(e){}
  sheet('<h2>🔍 فحص ملفات الصوت</h2><p class="muted" id="chk">⏳ بفحص الملفات…</p>');
  const all=[...BI.map(x=>({u:x.url,n:'البقرة – '+RN[x.reciter]+' – '+x.name})),...YASIN.map(x=>({u:x.url,n:'يس – '+x.name}))];
  let ok=0;const miss=[];
@@ -434,12 +440,12 @@ function resumeRun(){
 
 /* ---------- Surah Yasin during breaks (optional) ---------- */
 const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"}];
-const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null;const YBAD=new Set();
+const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null;const YBAD=new Set((()=>{try{return JSON.parse(localStorage.getItem('forest-ybad')||'[]')}catch(e){return[]}})());const ySaveBad=()=>{try{localStorage.setItem('forest-ybad',JSON.stringify([...YBAD]))}catch(e){}};
 yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!yu.src.startsWith('blob:')){ALT[u]=1;yu.src=altUrl(u);yu.load();yReady=Promise.resolve();yPlay();return}
  const c=S.yasin.cur;
- if(c!=null&&YASIN[c]){YBAD.add(c);toast('ملف '+YASIN[c].name+' مش موجود – بنختار شيخ تاني 🔄');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart()}
+ if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();toast('ملف '+YASIN[c].name+' مش موجود – بنختار شيخ تاني 🔄');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart()}
 };
 function showName(n){
  const d=document.createElement('div');d.className='yname';
