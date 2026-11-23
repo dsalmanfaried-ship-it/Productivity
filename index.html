@@ -38,7 +38,7 @@ h2{font-size:16px;margin:0 0 10px;font-weight:700}
 .stage{position:relative;width:min(78vw,300px);aspect-ratio:1;margin:10px auto 0}
 .stage svg.ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
 .ring-bg{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.12);stroke-width:5}
-#ringP{fill:none;stroke:var(--leaf);stroke-width:5;stroke-linecap:round;stroke-dasharray:578;stroke-dashoffset:578;transition:stroke-dashoffset .25s linear}
+#ringP{fill:none;stroke:var(--leaf);stroke-width:5;stroke-linecap:round;stroke-dasharray:578;stroke-dashoffset:578;transition:stroke-dashoffset 1s linear}
 .treebox{position:absolute;inset:12% 12% 8%}
 .treebox svg{width:100%;height:100%}
 .time{font-size:54px;font-weight:800;text-align:center;margin:6px 0 0;font-variant-numeric:tabular-nums;letter-spacing:1px}
@@ -124,7 +124,50 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 .sm{background:rgba(255,255,255,.1);padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600}
 .sm.red{background:rgba(255,138,128,.2);color:#ffd2cd}
 .big-t{width:150px;margin:0 auto}
+@keyframes tpop{0%{transform:translate(100px,172px) scale(.55) translate(-100px,-172px);opacity:0}60%{transform:translate(100px,172px) scale(1.07) translate(-100px,-172px);opacity:1}100%{transform:translate(100px,172px) scale(1) translate(-100px,-172px);opacity:1}}
+@keyframes tsway{0%,100%{transform:translate(100px,172px) rotate(-1.3deg) translate(-100px,-172px)}50%{transform:translate(100px,172px) rotate(1.3deg) translate(-100px,-172px)}}
+.tsw{transform-origin:0 0;animation:tpop .7s cubic-bezier(.2,.9,.3,1.2) both}
+.tsy{transform-origin:0 0;animation:tsway 5s ease-in-out .7s infinite}
+@media (prefers-reduced-motion:reduce){.tsw,.tsy{animation:none}.tg{transition:none!important}}
+.big:disabled{opacity:.6;box-shadow:none;transform:none;cursor:default}
 .big-t svg{width:100%}
+/* login gate */
+#gate{position:fixed;inset:0;z-index:25;display:none;align-items:center;justify-content:center;padding:24px;overflow:hidden;background:radial-gradient(900px 520px at 50% 16%,#25906a 0%,#154d3b 45%,#0f3a2d 78%)}
+#gate.on{display:flex;animation:gfade .5s ease both}
+#gate.out{animation:gout .6s ease both;pointer-events:none}
+@keyframes gfade{from{opacity:0}to{opacity:1}}
+@keyframes gout{to{opacity:0;transform:scale(1.07)}}
+.gleaves{position:absolute;inset:0;pointer-events:none}
+.gleaves i{position:absolute;top:-34px;font-style:normal;opacity:.5;animation:gfall linear infinite}
+@keyframes gfall{0%{transform:translate(0,-30px) rotate(0)}50%{transform:translate(26px,55vh) rotate(180deg)}100%{transform:translate(-14px,112vh) rotate(360deg)}}
+.gwrap{position:relative;z-index:1;text-align:center;width:100%;max-width:340px}
+.gglow{position:absolute;left:50%;top:0;width:260px;height:260px;margin-left:-130px;border-radius:50%;background:radial-gradient(circle,rgba(155,224,122,.38),rgba(155,224,122,0) 68%);animation:gbreath 3.6s ease-in-out infinite}
+@keyframes gbreath{0%,100%{transform:scale(.9);opacity:.7}50%{transform:scale(1.12);opacity:1}}
+.gtree{position:relative;width:min(52vw,210px);margin:0 auto 6px;filter:drop-shadow(0 14px 22px rgba(0,0,0,.35))}
+.gtree svg{width:100%;display:block}
+.gt{font-size:36px;font-weight:800;margin:6px 0 2px;animation:gup .7s .35s cubic-bezier(.2,.9,.3,1.1) backwards}
+.gs{color:var(--mute);margin:0 0 24px;font-size:15px;line-height:1.7;animation:gup .7s .5s cubic-bezier(.2,.9,.3,1.1) backwards}
+@keyframes gup{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1f3a2c;font-weight:800;font-size:18px;padding:14px;border-radius:999px;box-shadow:0 6px 0 #c3d3c9;transition:transform .08s,box-shadow .08s,opacity .2s;animation:gup .7s .65s cubic-bezier(.2,.9,.3,1.1) backwards,gpulse 2.8s 1.6s ease-out infinite}
+.gbtn:active{transform:translateY(3px);box-shadow:0 3px 0 #c3d3c9}
+.gbtn:disabled{opacity:.75;animation:none;cursor:default}
+@keyframes gpulse{0%{box-shadow:0 6px 0 #c3d3c9,0 0 0 0 rgba(155,224,122,.55)}70%,100%{box-shadow:0 6px 0 #c3d3c9,0 0 0 16px rgba(155,224,122,0)}}
+.gic{display:inline-flex}
+.gspin{width:20px;height:20px;border:3px solid rgba(31,58,44,.2);border-top-color:#2e7d32;border-radius:50%;animation:gspin .8s linear infinite}
+.gspin[hidden],.gic[hidden]{display:none}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.gmsg{color:#ffd2cd;background:rgba(255,138,128,.16);border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.6;margin:14px 0 0;animation:gshake .45s}
+.gmsg[hidden]{display:none}
+@keyframes gshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.gskip{background:none;color:var(--mute);margin-top:14px;font-size:14px;text-decoration:underline;padding:8px 12px;animation:gup .7s .8s cubic-bezier(.2,.9,.3,1.1) backwards}
+.gdots::after{content:'';animation:gdots 1.3s steps(1) infinite}
+@keyframes gdots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+#gate.ok .gbtn,#gate.ok .gskip,#gate.ok .gmsg{display:none}
+#gate.ok .gtree{animation:gbloom .9s cubic-bezier(.2,.9,.3,1.25) both}
+#gate.ok .gglow{animation:gburst 1s ease-out both}
+@keyframes gbloom{0%{transform:scale(1)}55%{transform:scale(1.18)}100%{transform:scale(1.1)}}
+@keyframes gburst{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){#gate *,#gate{animation:none!important}}
 </style>
 </head>
 <body>
@@ -134,6 +177,7 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 </div>
 <nav><div class="in" id="nav"></div></nav>
 <div id="sheet"><div id="sheetBody"></div></div>
+<div id="gate"></div>
 <div id="toast"></div>
 
 <script>
@@ -195,7 +239,8 @@ function treeSVG(key,p,dead,vb){
  if(p<0.1&&!dead) body=`<path d="M100 172 L100 150" stroke="#5fb760" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="89" cy="148" rx="11" ry="6" fill="#6fcf6f" transform="rotate(-25 89 148)"/><ellipse cx="111" cy="146" rx="11" ry="6" fill="#58b85a" transform="rotate(25 111 146)"/>`;
  else{
   const k=0.3+0.7*Math.max(p,dead?0.3:0.1);
-  body=`<g transform="${dead?'rotate(6 100 172) ':''}translate(100 172) scale(${k.toFixed(3)}) translate(-100 -172)">${shape(s,tr,c1,c2,dead)}</g>`;
+  if(!vb&&!dead) body=`<g class="tg" style="transform-origin:0 0;transform:translate(100px,172px) scale(${k.toFixed(3)}) translate(-100px,-172px);transition:transform 1s linear"><g class="tsw"><g class="tsy">${shape(s,tr,c1,c2,dead)}</g></g></g>`;
+  else body=`<g transform="${dead?'rotate(6 100 172) ':''}translate(100 172) scale(${k.toFixed(3)}) translate(-100 -172)">${shape(s,tr,c1,c2,dead)}</g>`;
  }
  return `<svg viewBox="${vb||'0 0 200 190'}" xmlns="http://www.w3.org/2000/svg">${ground}${body}</svg>`;
 }
@@ -558,7 +603,9 @@ function tick(){
   const tm=$('#tm'),rp=$('#ringP'),tb=$('#treeBox');
   if(tm)tm.textContent=fmt(remain);
   if(rp)rp.style.strokeDashoffset=578*(1-p);
-  if(tb)tb.innerHTML=treeSVG(a.species,p,false);
+  if(tb){const g=tb.querySelector('g.tg');
+   if(g&&p>=0.1)g.style.transform='translate(100px,172px) scale('+(0.3+0.7*p).toFixed(3)+') translate(-100px,-172px)';
+   else tb.innerHTML=treeSVG(a.species,p,false)}
   document.title='🌱 '+fmt(remain);
  }
 }
@@ -789,6 +836,8 @@ document.addEventListener('click',e=>{
   case 'export':{const t=JSON.stringify(S);try{navigator.clipboard.writeText(t).then(()=>toast('اتنسخت ✔'),()=>toast('مش قادر أنسخ'))}catch(err){toast('مش قادر أنسخ')}}break;
   case 'acct':acctSheet();break;
   case 'fbIn':fbSignIn();break;
+  case 'gskip':gateSkip=true;try{sessionStorage.setItem('forest-gate-skip','1')}catch(err){}gateClose($('#gate'));break;
+  case 'gretry':fbMsg='';gateRender();fbInit();break;
   case 'fbOut':fbSignOut();break;
   case 'fbSync':fbSyncNow();break;
   case 'fbCloud':fbResolve('cloud');break;
@@ -807,6 +856,7 @@ try{if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigat
 /* ---------- حساب جوجل + مزامنة (Firebase) ---------- */
 const FBC={apiKey:"AIzaSyBx-g2J7OBvYznTSo9Nb0XJCGAdNTuAjfU",authDomain:"ghabaty-84b32.firebaseapp.com",projectId:"ghabaty-84b32",storageBucket:"ghabaty-84b32.firebasestorage.app",messagingSenderId:"872681239030",appId:"1:872681239030:web:ed56a9cfd6994b317a57d7"};
 const FBV='10.14.1';
+let fbSigning=false,fbAuthKnown=false;
 let FB=null,fbUser=null,fbLoading=false,fbReady=false,fbMsg='',fbTimer=null,fbLastAt=+(localStorage.getItem('forest-fb-last')||0),fbPending=null,fbBusy=false;
 const fbHash=t=>{let x=0;for(let i=0;i<t.length;i++)x=(x*31+t.charCodeAt(i))|0;return String(x)};
 const fbSig=()=>{const o=Object.assign({},S);['active','rest','pnotified','ppre','qpos','_sync','_ssig'].forEach(k=>delete o[k]);o.yasin=Object.assign({},o.yasin);delete o.yasin.t;delete o.yasin.cur;delete o.yasin.last;return JSON.stringify(o)};
@@ -818,8 +868,13 @@ const fbErr=e=>{const c=(e&&(e.code||e.message))||'';
  if(/popup-closed|cancelled-popup/.test(c))return 'قفلت نافذة الدخول قبل ما تخلص';
  if(/permission-denied/.test(c))return 'قواعد الأمان في Firestore مش متظبطة (permission-denied)';
  if(/network|unavailable|offline/.test(c))return 'مفيش اتصال بالإنترنت دلوقتي';
+ if(/operation-not-supported|web-storage-unsupported/.test(c))return 'المتصفح ده مش بيدعم الدخول. افتح الموقع من كروم أو سفاري مباشرة';
+ if(/too-many-requests/.test(c))return 'محاولات كتير، استنى شوية وجرّب تاني';
+ if(/disallowed_useragent/.test(c))return 'جوجل بتمنع الدخول من جوه التطبيقات. افتح الرابط في كروم أو سفاري';
  return 'حصل خطأ: '+String(c).slice(0,80)};
-async function fbLoad(){
+let fbP=null;
+function fbLoad(){if(FB)return Promise.resolve(FB);if(fbP)return fbP;fbP=fbLoad0().catch(e=>{fbP=null;throw e});return fbP}
+async function fbLoad0(){
  if(FB)return FB;
  const b='https://www.gstatic.com/firebasejs/'+FBV+'/';
  const [A,AU,FS]=await Promise.all([import(b+'firebase-app.js'),import(b+'firebase-auth.js'),import(b+'firebase-firestore.js')]);
@@ -827,12 +882,12 @@ async function fbLoad(){
  const auth=AU.getAuth(app);
  let db;try{db=FS.initializeFirestore(app,{experimentalAutoDetectLongPolling:true})}catch(e){db=FS.getFirestore(app)}
  FB={AU,FS,auth,db};
- AU.onAuthStateChanged(auth,u=>{fbUser=u||null;
+ AU.onAuthStateChanged(auth,u=>{fbUser=u||null;fbAuthKnown=true;
   if(u){try{localStorage.setItem('forest-fb-on','1')}catch(e){}fbPull(false)}
   else{fbReady=false}
   acctRefresh()});
  return FB}
-function fbInit(){if(localStorage.getItem('forest-fb-on')==='1'&&navigator.onLine!==false)fbLoad().catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+function fbInit(){if(navigator.onLine!==false)fbLoad().catch(e=>{fbMsg=fbErr(e);fbAuthKnown=true;acctRefresh()})}
 function fbDoc(){return FB.FS.doc(FB.db,'users',fbUser.uid)}
 async function fbPushNow(){
  if(!FB||!fbUser||!fbReady)return;
@@ -877,9 +932,12 @@ async function fbResolve(w){
   else{try{localStorage.setItem('forest-fb-backup',JSON.stringify(p.cd))}catch(e){}fbReady=true;await fbPushNow();toast('اترفعت بيانات الجهاز ✔')}
  }catch(e){fbMsg=fbErr(e);acctRefresh()}}
 function fbSignIn(){
+ if(fbSigning)return;
  if(!FB){toast('استنى لحظة، بنحمّل خدمة الدخول…');return}
- fbMsg='';
- FB.AU.signInWithPopup(FB.auth,new FB.AU.GoogleAuthProvider()).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+ fbMsg='';fbSigning=true;acctRefresh();
+ const pr=new FB.AU.GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});
+ FB.AU.signInWithPopup(FB.auth,pr).then(()=>toast('اتسجّل الدخول ✔')).catch(e=>{fbMsg=fbErr(e)}).finally(()=>{fbSigning=false;acctRefresh()})}
+const inApp=/FBAN|FBAV|Instagram|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent||'');
 function fbSignOut(){
  if(!FB)return;
  FB.AU.signOut(FB.auth).then(()=>{try{localStorage.removeItem('forest-fb-on')}catch(e){}delete S._sync;delete S._ssig;fbReady=false;fbMsg='';try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}acctRefresh();toast('اتسجّل الخروج. بياناتك لسه على الجهاز')}).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
@@ -894,19 +952,76 @@ function acctHtml(){
   const t=fbLastAt?new Date(fbLastAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'لسه';
   b+=`<div class="row sel">✔ داخل بحساب: ${esc(fbUser.email||fbUser.displayName||'')}</div><p class="muted">آخر مزامنة: ${t}<br>التغييرات بتترفع تلقائيًا، وبتتحدّث بياناتك لما تفتح التطبيق على أي جهاز بنفس الحساب.</p><button class="big" data-act="fbSync">🔄 مزامنة دلوقتي</button><button class="big ghost" data-act="fbOut">تسجيل الخروج</button>`}
  else if(!FB){b+=fbLoading?'<p class="muted">⏳ جاري تحميل خدمة الدخول…</p>':'<p class="muted">خدمة الدخول مش متحمّلة (محتاجة نت).</p>'}
- else b+='<p class="muted">سجّل دخول بحساب جوجل عشان بياناتك (الغابة والعملات والإحصائيات والإعدادات) تتحفظ على حسابك وتظهر على أي جهاز.</p><button class="big" data-act="fbIn">🔐 دخول بحساب جوجل</button>';
+ else b+='<p class="muted">سجّل دخول بحساب جوجل عشان بياناتك (الغابة والعملات والإحصائيات والإعدادات) تتحفظ على حسابك وتظهر على أي جهاز.</p>'+(inApp?'<p class="warn">الظاهر إنك فاتح الموقع من جوه تطبيق (واتساب/فيسبوك…). جوجل بتمنع الدخول من هنا، افتح الرابط في كروم أو سفاري.</p>':'')+(fbSigning?'<button class="big" disabled>⏳ بنفتح نافذة جوجل…</button>':'<button class="big" data-act="fbIn">🔐 دخول بحساب جوجل</button>');
  if(fbMsg)b+=`<p style="color:#f2994a">⚠️ ${esc(fbMsg)}</p>`;
  return b+'<button class="big ghost" data-act="close">إغلاق</button>'}
 function acctSheet(){
  sheet('<h2>👤 حسابي</h2><div id="acctBox">'+acctHtml()+'</div>');
  if(!FB&&!fbLoading){fbLoading=true;fbMsg='';fbLoad().catch(e=>{fbMsg=fbErr(e)}).finally(()=>{fbLoading=false;acctRefresh()})}}
-function acctRefresh(){const bt=$('#acctBtn');if(bt)bt.textContent=fbUser?'☁️':'👤';const x=$('#acctBox');if(x&&$('#sheet').classList.contains('on'))x.innerHTML=acctHtml()}
+function acctRefresh(){try{gateRender()}catch(e){}const bt=$('#acctBtn');if(bt)bt.textContent=fbUser?'☁️':'👤';const x=$('#acctBox');if(x&&$('#sheet').classList.contains('on'))x.innerHTML=acctHtml()}
+
+/* ---------- login gate (أول حاجة بتظهر) ---------- */
+let gateSt='',gateSkip=false,gateT=null,gateW=null;
+try{gateSkip=sessionStorage.getItem('forest-gate-skip')==='1'}catch(e){}
+const GIC='<svg width="22" height="22" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
+const gateWant=()=>!fbUser&&!gateSkip&&navigator.onLine!==false;
+function gateLeaves(){let o='';for(let i=0;i<9;i++)o+=`<i style="left:${Math.round(4+i*11+Math.random()*6)}%;animation-duration:${(8+Math.random()*6).toFixed(1)}s;animation-delay:${(Math.random()*7).toFixed(1)}s;font-size:${14+Math.floor(Math.random()*12)}px">🍃</i>`;return o}
+function gateBuild(g,st){
+ if(gateSt===st)return;
+ clearTimeout(gateT);clearTimeout(gateW);gateSt=st;
+ g.className='on';
+ const top=`<div class="gleaves">${gateLeaves()}</div><div class="gwrap"><div class="gglow"></div><div class="gtree">${treeSVG('oak',1,false)}</div><h1 class="gt" id="gT">🌲 غابتي</h1>`;
+ if(st==='wait'){
+  g.innerHTML=top+'<p class="gs" id="gS">جاري التحقق من حسابك<span class="gdots"></span></p></div>';
+  gateW=setTimeout(()=>{fbAuthKnown=true;gateRender()},6000);
+ }else{
+  g.innerHTML=top+`<p class="gs" id="gS">ازرع شجرتك وانت بتركّز،<br>وبياناتك تتحفظ على حسابك</p><button class="gbtn" id="gBtn" data-act="fbIn"><span class="gic">${GIC}</span><span class="gspin" hidden></span><span id="gBtnT">دخول بحساب جوجل</span></button><p class="gmsg" id="gMsg" hidden></p><button class="gskip" data-act="gskip">كمّل من غير حساب</button></div>`;
+ }
+}
+function gateUpdate(g){
+ const b=g.querySelector('#gBtn'),t=g.querySelector('#gBtnT'),m=g.querySelector('#gMsg');if(!b||!t||!m)return;
+ let txt='دخول بحساب جوجل',dis=false,act='fbIn',spin=false;
+ if(fbSigning){txt='بنفتح نافذة جوجل…';dis=true;spin=true}
+ else if(!FB){if(fbMsg){txt='إعادة المحاولة';act='gretry'}else{txt='جاري تحميل خدمة الدخول…';dis=true;spin=true}}
+ b.disabled=dis;b.dataset.act=act;t.textContent=txt;
+ const ic=b.querySelector('.gic'),sp=b.querySelector('.gspin');if(ic)ic.hidden=spin;if(sp)sp.hidden=!spin;
+ const msg=fbMsg||(inApp?'الظاهر إنك فاتح الموقع من جوه تطبيق. جوجل بتمنع الدخول من هنا، افتح الرابط في كروم أو سفاري.':'');
+ if(m.dataset.m!==msg){m.dataset.m=msg;m.textContent=msg;m.hidden=!msg;if(msg){m.style.animation='none';void m.offsetWidth;m.style.animation=''}}
+}
+function gateClose(g){
+ if(!g||gateSt==='out'||!gateSt)return;
+ clearTimeout(gateT);clearTimeout(gateW);gateSt='out';g.classList.add('out');
+ gateT=setTimeout(()=>{g.className='';g.innerHTML='';gateSt=''},650);
+}
+function gateOK(g){
+ clearTimeout(gateT);gateSt='ok';g.classList.add('ok');
+ const nm=String(fbUser.displayName||fbUser.email||'').split(/[ @]/)[0];
+ const T=g.querySelector('#gT'),S2=g.querySelector('#gS');
+ if(T)T.textContent='أهلاً '+(nm?nm+' ':'')+'🌱';
+ if(S2)S2.textContent='جاري تجهيز غابتك…';
+ gateT=setTimeout(()=>gateClose(g),1300);
+}
+function gateRender(){
+ const g=$('#gate');if(!g)return;
+ if(fbUser){
+  if(gateSt==='login')gateOK(g);
+  else if(gateSt==='wait')gateClose(g);
+  return}
+ if(!gateWant()){gateClose(g);return}
+ if(gateSt==='ok')return;
+ const waiting=localStorage.getItem('forest-fb-on')==='1'&&!fbAuthKnown;
+ gateBuild(g,waiting?'wait':'login');
+ if(!waiting)gateUpdate(g);
+}
+window.addEventListener('online',()=>{if(!FB)fbInit();gateRender()});
+window.addEventListener('offline',gateRender);
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'){fbPull(false)}
  else if(fbReady&&fbUser&&fbHash(fbSig())!==S._ssig){fbPushNow().catch(()=>{})}});
 window.addEventListener('online',()=>{if(fbUser)fbPull(false);else fbInit()});
 setInterval(()=>{if(!document.hidden&&fbUser)fbPull(false)},300000);
 fbInit();
+gateRender();
 
 setInterval(prayerWatch,1000);
 render();
