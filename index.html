@@ -144,7 +144,7 @@ const KEY='forest-web-v1';
 const def=()=>({sessions:[],tags:[{id:'t1',name:'دراسة',color:'#56ccf2'},{id:'t2',name:'شغل',color:'#f2994a'},{id:'t3',name:'قراءة',color:'#bb6bd9'},{id:'t4',name:'رياضة',color:'#6fcf97'}],coins:0,unlocked:['oak'],species:'oak',dur:25,mode:'down',tag:'t1',sound:'none',grace:10,active:null,qr:'islam',qpos:{},pray:{city:'cairo',method:'egypt',auto:'pause',lat:30.0444,lng:31.2357},pnotified:'',ppre:'',yasin:{on:false,cur:null,t:0,last:-1,auto:true,pick:-1}});
 let S;
 try{S=Object.assign(def(),JSON.parse(localStorage.getItem(KEY))||{})}catch(e){S=def()}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}try{window.fbPush&&window.fbPush()}catch(e){}};
 const COLORS=['#e57373','#f2994a','#f2c94c','#6fcf97','#56ccf2','#9b8cf2','#bb6bd9','#b0b0b0'];
 const SP={
  oak:{name:'بر الوالدين',price:0,kind:'round',trunk:'#7a5230',c1:'#43a047',c2:'#2e7d32'},
@@ -691,7 +691,9 @@ function vStats(){
   <div class="setrow"><span>مهلة الخروج من التاب</span><select id="grace">${[5,10,30,60].map(g=>`<option value="${g}" ${S.grace===g?'selected':''}>${g} ثانية</option>`).join('')}</select></div>
   <div class="setrow"><span>فحص ملفات الصوت (هل كلها موجودة؟)</span><button class="sm" data-act="chk">فحص</button></div>
   <div class="setrow"><span>تنزيل التلاوات للاستخدام بدون نت</span><button class="sm" data-act="offSheet">تنزيل</button></div>
+  <div class="setrow"><span>حسابي (مزامنة بياناتك على كل أجهزتك)</span><button class="sm" data-act="acct">فتح</button></div>
   <div class="setrow"><span>نسخ بياناتك احتياطي</span><button class="sm" data-act="export">نسخ</button></div>
+  <div class="setrow"><span>استرجاع من نسخة احتياطية</span><button class="sm" data-act="impSheet">استرجاع</button></div>
   <div class="setrow"><span>مسح كل البيانات</span><button class="sm red" data-act="reset">مسح</button></div>
  </div>`;
 }
@@ -785,11 +787,127 @@ document.addEventListener('click',e=>{
   case 'nav':off=Math.min(0,off+ +v);render();break;
   case 'detail':{const x=S.sessions.find(s=>s.id===v);if(x){const d=new Date(x.start).toLocaleString('ar-EG',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});$('#detail').innerHTML=`${x.ok?'🌳':'🥀'} ${(SP[x.species]||SP.oak).name} • ${esc(tagOf(x.tag).name)} • ${fmtMin(x.mins)||'أقل من دقيقة'} • ${d}`}}break;
   case 'export':{const t=JSON.stringify(S);try{navigator.clipboard.writeText(t).then(()=>toast('اتنسخت ✔'),()=>toast('مش قادر أنسخ'))}catch(err){toast('مش قادر أنسخ')}}break;
+  case 'acct':acctSheet();break;
+  case 'fbIn':fbSignIn();break;
+  case 'fbOut':fbSignOut();break;
+  case 'fbSync':fbSyncNow();break;
+  case 'fbCloud':fbResolve('cloud');break;
+  case 'fbLocal':fbResolve('local');break;
+  case 'impSheet':sheet(`<h2>استرجاع من نسخة احتياطية</h2><p class="muted">الصق هنا النص اللي نسخته بزرار "نسخ بياناتك احتياطي". بياناتك الحالية هتتحفظ في نسخة أمان قبل الاستبدال.</p><textarea id="impTxt" style="width:100%;height:140px;border-radius:12px;padding:10px;box-sizing:border-box;background:var(--card,#163f33);color:inherit;border:1px solid #ffffff33" dir="ltr"></textarea><button class="big" data-act="impDo">استرجاع</button><button class="big ghost" data-act="close">إلغاء</button>`);break;
+  case 'impDo':{const t=($('#impTxt')||{}).value||'';let o;try{o=JSON.parse(t)}catch(err){toast('النص مش صحيح');break}
+   if(!o||!Array.isArray(o.sessions)||!Array.isArray(o.tags)){toast('ده مش نسخة احتياطية من غابتي');break}
+   try{localStorage.setItem('forest-backup-before-import',JSON.stringify(S));delete o._sync;delete o._ssig;delete o.active;localStorage.setItem(KEY,JSON.stringify(o))}catch(err){toast('فشل الاسترجاع');break}
+   toast('اتسترجعت ✔');setTimeout(()=>location.reload(),600)}break;
   case 'reset':sheet(`<h2 style="font-size:19px">مسح كل البيانات؟</h2><p class="muted">الغابة والعملات هتتمسح نهائي.</p><button class="big" data-act="close">لأ، سيبها</button><button class="big ghost" data-act="resetYes">أيوه امسح</button>`,true);break;
   case 'resetYes':{const g=S.grace;S=def();S.grace=g;save();closeSheet();render()}break;
  }
 });
 try{if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
+
+/* ---------- حساب جوجل + مزامنة (Firebase) ---------- */
+const FBC={apiKey:"AIzaSyBx-g2J7OBvYznTSo9Nb0XJCGAdNTuAjfU",authDomain:"ghabaty-84b32.firebaseapp.com",projectId:"ghabaty-84b32",storageBucket:"ghabaty-84b32.firebasestorage.app",messagingSenderId:"872681239030",appId:"1:872681239030:web:ed56a9cfd6994b317a57d7"};
+const FBV='10.14.1';
+let FB=null,fbUser=null,fbLoading=false,fbReady=false,fbMsg='',fbTimer=null,fbLastAt=+(localStorage.getItem('forest-fb-last')||0),fbPending=null,fbBusy=false;
+const fbHash=t=>{let x=0;for(let i=0;i<t.length;i++)x=(x*31+t.charCodeAt(i))|0;return String(x)};
+const fbSig=()=>{const o=Object.assign({},S);['active','rest','pnotified','ppre','qpos','_sync','_ssig'].forEach(k=>delete o[k]);o.yasin=Object.assign({},o.yasin);delete o.yasin.t;delete o.yasin.cur;delete o.yasin.last;return JSON.stringify(o)};
+const fbPayload=()=>{const o=JSON.parse(JSON.stringify(S));['active','rest','pnotified','ppre','_sync','_ssig'].forEach(k=>delete o[k]);return JSON.stringify(o)};
+const fbHasData=o=>(o.sessions||[]).length>0||(o.coins||0)>0||(o.unlocked||[]).length>1;
+const fbErr=e=>{const c=(e&&(e.code||e.message))||'';
+ if(/unauthorized-domain/.test(c))return 'الدومين ده مش مضاف في Authorized domains في Firebase';
+ if(/popup-blocked/.test(c))return 'المتصفح منع نافذة الدخول، اسمح بالنوافذ المنبثقة وجرّب تاني';
+ if(/popup-closed|cancelled-popup/.test(c))return 'قفلت نافذة الدخول قبل ما تخلص';
+ if(/permission-denied/.test(c))return 'قواعد الأمان في Firestore مش متظبطة (permission-denied)';
+ if(/network|unavailable|offline/.test(c))return 'مفيش اتصال بالإنترنت دلوقتي';
+ return 'حصل خطأ: '+String(c).slice(0,80)};
+async function fbLoad(){
+ if(FB)return FB;
+ const b='https://www.gstatic.com/firebasejs/'+FBV+'/';
+ const [A,AU,FS]=await Promise.all([import(b+'firebase-app.js'),import(b+'firebase-auth.js'),import(b+'firebase-firestore.js')]);
+ const app=A.initializeApp(FBC);
+ const auth=AU.getAuth(app);
+ let db;try{db=FS.initializeFirestore(app,{experimentalAutoDetectLongPolling:true})}catch(e){db=FS.getFirestore(app)}
+ FB={AU,FS,auth,db};
+ AU.onAuthStateChanged(auth,u=>{fbUser=u||null;
+  if(u){try{localStorage.setItem('forest-fb-on','1')}catch(e){}fbPull(false)}
+  else{fbReady=false}
+  acctRefresh()});
+ return FB}
+function fbInit(){if(localStorage.getItem('forest-fb-on')==='1'&&navigator.onLine!==false)fbLoad().catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+function fbDoc(){return FB.FS.doc(FB.db,'users',fbUser.uid)}
+async function fbPushNow(){
+ if(!FB||!fbUser||!fbReady)return;
+ const data=fbPayload();if(data.length>900000){fbMsg='حجم البيانات كبير على المزامنة';acctRefresh();return}
+ const mod=Date.now();
+ await FB.FS.setDoc(fbDoc(),{data,mod});
+ S._sync=mod;S._ssig=fbHash(fbSig());fbLastAt=mod;
+ try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('forest-fb-last',String(mod))}catch(e){}
+ fbMsg='';acctRefresh()}
+function fbPush(){
+ if(!fbReady||!fbUser||fbTimer)return;
+ if(fbHash(fbSig())===S._ssig)return;
+ fbTimer=setTimeout(()=>{fbTimer=null;if(fbHash(fbSig())!==S._ssig)fbPushNow().catch(e=>{fbMsg=fbErr(e);acctRefresh()})},8000)}
+window.fbPush=fbPush;
+function fbAdopt(cd,cm){
+ const keep={active:S.active,rest:S.rest,pnotified:S.pnotified,ppre:S.ppre};
+ try{localStorage.setItem('forest-fb-backup',JSON.stringify(S))}catch(e){}
+ S=Object.assign(def(),cd,keep);S._sync=cm;S._ssig=fbHash(fbSig());
+ try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('forest-fb-last',String(cm))}catch(e){}
+ toast('اتحدّثت بياناتك من الحساب ✔');setTimeout(()=>location.reload(),700)}
+async function fbPull(manual){
+ if(!FB||!fbUser||fbBusy)return;
+ fbBusy=true;
+ try{
+  const snap=await FB.FS.getDoc(fbDoc());
+  if(!snap.exists()){fbReady=true;await fbPushNow();return}
+  const c=snap.data();let cd;try{cd=JSON.parse(c.data)}catch(e){fbMsg='بيانات الحساب تالفة';acctRefresh();return}
+  const cm=+c.mod||0,localChanged=fbHash(fbSig())!==S._ssig,synced=!!S._sync;
+  if(synced&&cm===S._sync){fbReady=true;if(localChanged)await fbPushNow();else{fbMsg='';acctRefresh()}return}
+  if((S.active||S.rest)&&!manual){fbMsg='في جلسة شغالة، المزامنة هتتم بعد ما تخلص';acctRefresh();return}
+  if(synced&&!localChanged){fbReady=true;fbAdopt(cd,cm);return}
+  if(!synced&&!fbHasData(S)){fbReady=true;fbAdopt(cd,cm);return}
+  fbPending={cd,cm};fbReady=false;fbConflictSheet()
+ }catch(e){fbMsg=fbErr(e);acctRefresh()}
+ finally{fbBusy=false}}
+function fbConflictSheet(){const c=fbPending.cd,okC=(c.sessions||[]).length,okL=S.sessions.length;
+ sheet(`<h2 style="font-size:19px">لقينا بيانات على الحساب وعلى الجهاز</h2><p class="muted">اختار اللي تعتمد عليه. التاني هيتحفظ كنسخة أمان على الجهاز.</p><div class="row">☁️ الحساب: ${okC} جلسة • ${c.coins||0} عملة</div><div class="row">📱 الجهاز: ${okL} جلسة • ${S.coins||0} عملة</div><button class="big" data-act="fbCloud">استخدم بيانات الحساب</button><button class="big ghost" data-act="fbLocal">ارفع بيانات الجهاز (تستبدل الحساب)</button>`,true)}
+async function fbResolve(w){
+ if(!fbPending)return;const p=fbPending;fbPending=null;closeSheet();
+ try{
+  if(w==='cloud'){fbReady=true;fbAdopt(p.cd,p.cm)}
+  else{try{localStorage.setItem('forest-fb-backup',JSON.stringify(p.cd))}catch(e){}fbReady=true;await fbPushNow();toast('اترفعت بيانات الجهاز ✔')}
+ }catch(e){fbMsg=fbErr(e);acctRefresh()}}
+function fbSignIn(){
+ if(!FB){toast('استنى لحظة، بنحمّل خدمة الدخول…');return}
+ fbMsg='';
+ FB.AU.signInWithPopup(FB.auth,new FB.AU.GoogleAuthProvider()).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+function fbSignOut(){
+ if(!FB)return;
+ FB.AU.signOut(FB.auth).then(()=>{try{localStorage.removeItem('forest-fb-on')}catch(e){}delete S._sync;delete S._ssig;fbReady=false;fbMsg='';try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}acctRefresh();toast('اتسجّل الخروج. بياناتك لسه على الجهاز')}).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+function fbSyncNow(){
+ if(!FB||!fbUser)return;
+ if(fbReady&&fbHash(fbSig())!==S._ssig){fbPushNow().then(()=>toast('اتزامنت ✔')).catch(e=>{fbMsg=fbErr(e);acctRefresh()});return}
+ fbPull(true).then(()=>{if(!fbMsg&&!fbPending)toast('البيانات متزامنة ✔')})}
+function acctHtml(){
+ let b='';
+ if(navigator.onLine===false)b+='<p class="muted">مفيش نت دلوقتي. التطبيق شغال عادي، والمزامنة هتتم لما النت يرجع.</p>';
+ if(fbUser){
+  const t=fbLastAt?new Date(fbLastAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'لسه';
+  b+=`<div class="row sel">✔ داخل بحساب: ${esc(fbUser.email||fbUser.displayName||'')}</div><p class="muted">آخر مزامنة: ${t}<br>التغييرات بتترفع تلقائيًا، وبتتحدّث بياناتك لما تفتح التطبيق على أي جهاز بنفس الحساب.</p><button class="big" data-act="fbSync">🔄 مزامنة دلوقتي</button><button class="big ghost" data-act="fbOut">تسجيل الخروج</button>`}
+ else if(!FB){b+=fbLoading?'<p class="muted">⏳ جاري تحميل خدمة الدخول…</p>':'<p class="muted">خدمة الدخول مش متحمّلة (محتاجة نت).</p>'}
+ else b+='<p class="muted">سجّل دخول بحساب جوجل عشان بياناتك (الغابة والعملات والإحصائيات والإعدادات) تتحفظ على حسابك وتظهر على أي جهاز.</p><button class="big" data-act="fbIn">🔐 دخول بحساب جوجل</button>';
+ if(fbMsg)b+=`<p style="color:#f2994a">⚠️ ${esc(fbMsg)}</p>`;
+ return b+'<button class="big ghost" data-act="close">إغلاق</button>'}
+function acctSheet(){
+ sheet('<h2>👤 حسابي</h2><div id="acctBox">'+acctHtml()+'</div>');
+ if(!FB&&!fbLoading){fbLoading=true;fbMsg='';fbLoad().catch(e=>{fbMsg=fbErr(e)}).finally(()=>{fbLoading=false;acctRefresh()})}}
+function acctRefresh(){const x=$('#acctBox');if(x&&$('#sheet').classList.contains('on'))x.innerHTML=acctHtml()}
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='visible'){fbPull(false)}
+ else if(fbReady&&fbUser&&fbHash(fbSig())!==S._ssig){fbPushNow().catch(()=>{})}});
+window.addEventListener('online',()=>{if(fbUser)fbPull(false);else fbInit()});
+setInterval(()=>{if(!document.hidden&&fbUser)fbPull(false)},300000);
+fbInit();
+
 setInterval(prayerWatch,1000);
 render();
 </script>
