@@ -311,7 +311,7 @@ const CITIES={cairo:['القاهرة',30.0444,31.2357,'Africa/Cairo'],alex:['ا�
 const PMETH={egypt:{n:'الهيئة المصرية العامة للمساحة',f:19.5,i:17.5},uq:{n:'أم القرى',f:18.5,i:'90'},mwl:{n:'رابطة العالم الإسلامي',f:18,i:17}};
 const PN={fajr:'الفجر',duha:'الضحى',witr:'الوتر',sunrise:'الشروق',dhuhr:'الظهر',asr:'العصر',maghrib:'المغرب',isha:'العشاء'};
 const PRAYERS=['fajr','dhuhr','asr','maghrib','isha'];
-const brk=()=>S.pray.duha===false?PRAYERS:['fajr','duha','dhuhr','asr','maghrib','isha'];
+const brk=()=>PRAYERS;
 const RAD=Math.PI/180,dsin=x=>Math.sin(x*RAD),dcos=x=>Math.cos(x*RAD),dtan=x=>Math.tan(x*RAD),dasin=x=>Math.asin(x)/RAD,dacos=x=>Math.acos(x)/RAD,datan2=(y,x)=>Math.atan2(y,x)/RAD,dacot=x=>Math.atan(1/x)/RAD;
 const fixA=a=>a-360*Math.floor(a/360),fixH=h=>h-24*Math.floor(h/24);
 function julian(y,m,d){if(m<=2){y-=1;m+=12}const A=Math.floor(y/100),B=2-A+Math.floor(A/4);return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5}
@@ -323,7 +323,7 @@ function pCalc(y,m,d,lat,lng,mk){
  const asrT=t=>{const dec=sunPos(jd+t).decl;return ang(-dacot(1+dtan(Math.abs(lat-dec))),t,false)};
  const h={fajr:ang(M.f,5/24,true),sunrise:ang(0.833,6/24,true),dhuhr:mid(12/24),asr:asrT(13/24),maghrib:ang(0.833,18/24,false)};
  h.isha=M.i==='90'?h.maghrib+1.5:ang(M.i,18/24,false);
- h.duha=(h.fajr+h.dhuhr)/2;
+ h.duha=h.sunrise+0.25;h.duhaE=h.dhuhr-10/60;
  const o={};for(const k in h)o[k]=Math.round((Date.UTC(y,m-1,d)+(h[k]-lng/15)*3600000)/60000)*60000;
  return o;
 }
@@ -346,6 +346,7 @@ const pToday=()=>pTimes(Date.now());
 function pNext(){const now=Date.now(),e=pEvents().find(x=>x.t>now);return{k:e.k,t:e.t}}
 const pFmt=(ms,tz)=>isNaN(ms)?'—':new Intl.DateTimeFormat('ar-EG',{timeZone:tz,hour:'numeric',minute:'2-digit',hour12:true}).format(ms);
 const fmtHM=ms=>{const m=Math.max(0,Math.round(ms/60000));return(m>=60?Math.floor(m/60)+' س ':'')+(m%60)+' د'};
+function duhaNow(ms){const T=pTimes(ms).t;return S.pray.duha!==false&&!isNaN(T.duha)&&!isNaN(T.duhaE)&&ms>=T.duha&&ms<T.duhaE}
 function inMorning(ms){const T=pTimes(ms).t;return !isNaN(T.fajr)&&!isNaN(T.dhuhr)&&ms>=T.fajr&&ms<T.dhuhr}
 function autoMins(){const n=pNext();return{m:Math.min(180,Math.floor((n.t-Date.now())/60000)-5),n}}
 function syncAuto(){
@@ -405,9 +406,9 @@ function prayerWatch(){
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!S.active)document.title='غابتي – تركيز وإنتاجية'});
 function vPray(){
  const loc=pLoc(),T=pToday(),n=pNext(),c=S.pray;
- const rows=['fajr','sunrise',...(S.pray.duha===false?[]:['duha']),'dhuhr','asr','maghrib','isha'].map(k=>`<div class="setrow" style="padding:10px 12px;border-radius:14px;margin:6px 0;${n.k===k?'background:rgba(155,224,122,.18);font-weight:800':'background:rgba(0,0,0,.18)'}"><span>${k==='duha'?'الضحى (بريك الصبح)':PN[k]}${n.k===k?' ← الجاية':''}</span><span>${pFmt(T.t[k],loc.tz)}</span></div>`).join('')+(()=>{if(!witrOn())return '';const w=pEvents().find(e=>e.k==='witr'&&e.t>Date.now());return w?`<div class="setrow" style="padding:10px 12px;border-radius:14px;margin:6px 0;${n.k==='witr'?'background:rgba(155,224,122,.18);font-weight:800':'background:rgba(0,0,0,.18)'}"><span>الوتر (من العشاء للفجر)${n.k==='witr'?' ← الجاية':''}</span><span>${pFmt(w.t,loc.tz)}</span></div>`:''})();
+ const rows=['fajr','sunrise',...(S.pray.duha===false?[]:['duha']),'dhuhr','asr','maghrib','isha'].map(k=>`<div class="setrow" style="padding:10px 12px;border-radius:14px;margin:6px 0;${n.k===k?'background:rgba(155,224,122,.18);font-weight:800':'background:rgba(0,0,0,.18)'}"><span>${k==='duha'?'الضحى (أي وقت في البريك)':PN[k]}${n.k===k?' ← الجاية':''}</span><span>${k==='duha'?pFmt(T.t.duha,loc.tz)+' – '+pFmt(T.t.duhaE,loc.tz):pFmt(T.t[k],loc.tz)}</span></div>`).join('')+(()=>{if(!witrOn())return '';const w=pEvents().find(e=>e.k==='witr'&&e.t>Date.now());return w?`<div class="setrow" style="padding:10px 12px;border-radius:14px;margin:6px 0;${n.k==='witr'?'background:rgba(155,224,122,.18);font-weight:800':'background:rgba(0,0,0,.18)'}"><span>الوتر (من العشاء للفجر)${n.k==='witr'?' ← الجاية':''}</span><span>${pFmt(w.t,loc.tz)}</span></div>`:''})();
  return `<div class="card" style="text-align:center"><div class="muted">الصلاة الجاية</div><div style="font-size:26px;font-weight:800">${PN[n.k]} ${pFmt(n.t,loc.tz)}</div><div style="color:var(--leaf)">بعد ${fmtHM(n.t-Date.now())}</div></div>
- <div class="card"><h2>مواقيت النهارده</h2>${rows}<p class="muted">☀️ بونص ×2 على العملات لو بدأت الجلسة من الفجر لحد الظهر، وبريك الصبح لصلاة الضحى في نص الفترة دي، وبريك الوتر في الفترة بين العشاء والفجر.</p><p class="muted">الحساب فلكي وبيشتغل من غير نت، وممكن يختلف دقيقة أو اتنين عن التقويم الرسمي، فراجعه مع مسجد منطقتك.</p></div>
+ <div class="card"><h2>مواقيت النهارده</h2>${rows}<p class="muted">☀️ بونص ×2 على العملات لو بدأت الجلسة من الفجر لحد الظهر، وصلاة الضحى مش لها وقت محدد: صلّيها في أي بريك من بعد الشروق بربع ساعة لحد قبل الظهر بـ ١٠ دقايق، وبريك الوتر في الفترة بين العشاء والفجر.</p><p class="muted">الحساب فلكي وبيشتغل من غير نت، وممكن يختلف دقيقة أو اتنين عن التقويم الرسمي، فراجعه مع مسجد منطقتك.</p></div>
  <div class="card"><h2>فضل صلاة ${n.k==='duha'?'الضحى':PN[n.k]}</h2><p style="line-height:1.8;margin:6px 0">${FADL[n.k].t}</p><p class="muted">(${FADL[n.k].s})</p></div>
  <div class="card"><h2>فضل التبكير للصلاة ⏰</h2>${TABKIR.map(x=>`<p style="line-height:1.8;margin:8px 0">• ${x.t} <span class="muted">(${x.s})</span></p>`).join('')}<p class="muted">النصوص مصاغة بالمعنى، فراجع الأصل أو اسأل أهل العلم.</p></div>
  <div class="card"><h2>الإعدادات</h2>
@@ -415,7 +416,7 @@ function vPray(){
   ${c.city==='custom'?`<div class="setrow"><span>خط العرض / الطول</span><span><input type="text" id="plat" value="${c.lat}" style="width:84px;display:inline-block;margin:0" inputmode="decimal"> <input type="text" id="plng" value="${c.lng}" style="width:84px;display:inline-block;margin:0" inputmode="decimal"></span></div>`:''}
   <div class="setrow"><span>طريقة الحساب</span><select id="pmeth">${Object.entries(PMETH).map(([k,v])=>`<option value="${k}" ${c.method===k?'selected':''}>${v.n}</option>`).join('')}</select></div>
   <div class="setrow"><span>وقت الأذان أثناء الجلسة</span><select id="pauto"><option value="pause" ${c.auto==='pause'?'selected':''}>وقّف الجلسة تلقائي</option><option value="ask" ${c.auto==='ask'?'selected':''}>اسألني</option><option value="off" ${c.auto==='off'?'selected':''}>تنبيه بس</option></select></div>
-  <div class="setrow"><span>بريك الضحى (نص الصبح)</span><select id="pduha"><option value="1" ${c.duha!==false?'selected':''}>شغّال</option><option value="0" ${c.duha===false?'selected':''}>مقفول</option></select></div>
+  <div class="setrow"><span>تذكير صلاة الضحى في البريك (أي وقت من الصبح)</span><select id="pduha"><option value="1" ${c.duha!==false?'selected':''}>شغّال</option><option value="0" ${c.duha===false?'selected':''}>مقفول</option></select></div>
   ${YASIN.length?`<div class="setrow"><span>تلاوة سورة يس في بريك المذاكرة (اختياري)</span><select id="pyasin"><option value="0" ${!S.yasin.on?'selected':''}>مقفول</option><option value="1" ${S.yasin.on?'selected':''}>شغّال</option></select></div><div class="setrow"><span>تشغيل يس تلقائي أول البريك</span><select id="pyauto"><option value="1" ${S.yasin.auto!==false?'selected':''}>تلقائي</option><option value="0" ${S.yasin.auto===false?'selected':''}>أنا أشغّله بنفسي</option></select></div>`:''}
   <div class="setrow"><span>بريك الوتر (بين العشاء والفجر)</span><select id="pwitr"><option value="1" ${witrOn()?'selected':''}>شغّال</option><option value="0" ${!witrOn()?'selected':''}>مقفول</option></select></div>
   ${witrOn()?`<div class="setrow"><span>وقت بريك الوتر</span><select id="pwat">${[['after','بعد العشاء بـ ١٥ دقيقة'],['last3','الثلث الأخير من الليل'],['before','قبل الفجر بـ ٣٠ دقيقة']].map(o=>`<option value="${o[0]}" ${(S.pray.witrAt||'after')===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>`:''}
@@ -494,6 +495,7 @@ let restT=null;
 const RESTS=[5,10,15,20];
 function restSheet(){
  sheet(`<h2>☕ بريك المذاكرة</h2><p class="muted">اختار مدة البريك:</p>
+ ${duhaNow(Date.now())?`<p class="muted">☀️ دلوقتي وقت الضحى (لحد ${pFmt(pToday().t.duhaE,pLoc().tz)}) – ممكن تصلّيها في أي بريك.</p>`:''}
  <div class="chips">${RESTS.map(m=>`<button class="chip" data-act="rest" data-v="${m}" style="${S.brkLast===m?'outline:2px solid var(--leaf)':''}">${m} دقيقة</button>`).join('')}</div>
  ${YASIN.length?`<div class="row ${S.yasin.on?'sel':''}" data-act="yopt2">🎧 سورة يس أثناء البريك (شيخ عشوائي، اختياري): ${S.yasin.on?'شغّال':'مقفول'}</div>${S.yasin.on?`<div class="row ${S.yasin.auto!==false?'sel':''}" data-act="yauto">▶ تشغيل تلقائي أول البريك: ${S.yasin.auto!==false?'تلقائي':'يدوي'}</div>`:''}`:''}
  <button class="big ghost" data-act="close">إلغاء</button>`);
@@ -525,6 +527,7 @@ function vRest(){
  return `<div class="stage"><svg class="ring" viewBox="0 0 200 200"><circle class="ring-bg" cx="100" cy="100" r="92"/><circle id="ringR" cx="100" cy="100" r="92" style="fill:none;stroke:var(--gold);stroke-width:5;stroke-linecap:round;stroke-dasharray:578;stroke-dashoffset:${578*(el/r.dur)}"/></svg><div class="treebox" style="display:flex;align-items:center;justify-content:center;font-size:96px">☕</div></div>
  <div class="time" id="rtm">${fmt(remain)}</div>
  <div class="sub">بريك المذاكرة – ${Math.round(r.dur/60000)} دقيقة</div>
+ ${duhaNow(Date.now())?`<div class="card" style="text-align:center"><div style="font-weight:800">☀️ وقت صلاة الضحى لسه موجود</div><p class="muted" style="margin:6px 0">صلّيها في أي وقت من البريك. ${FADL.duha.t} <small>(${FADL.duha.s})</small></p></div>`:''}
  <div id="ybox"></div>
  ${YASIN.length?`<div class="chips"><button class="chip" data-act="yrest" style="${S.yasin.on?'outline:2px solid var(--leaf)':''}">🎧 سورة يس: ${S.yasin.on?'شغّال':'مقفول'}</button></div>`:''}
  <button class="big ghost" data-act="endRest">إنهاء البريك ورجوع للتركيز</button>`;
