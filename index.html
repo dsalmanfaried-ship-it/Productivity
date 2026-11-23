@@ -15,6 +15,9 @@
 <meta property="og:image" content="icon-512.png">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0f3a2d;--bg2:#154d3b;--card:#1b5a45;--card2:#216b52;--ink:#f4f1e4;--mute:#a9cdbb;--leaf:#9be07a;--gold:#ffd45e;--red:#ff8a80;--line:rgba(255,255,255,.1)}
@@ -837,7 +840,7 @@ document.addEventListener('click',e=>{
   case 'acct':acctSheet();break;
   case 'fbIn':fbSignIn();break;
   case 'gskip':gateSkip=true;try{sessionStorage.setItem('forest-gate-skip','1')}catch(err){}gateClose($('#gate'));break;
-  case 'gretry':fbMsg='';gateRender();fbInit();break;
+  case 'gretry':location.reload();break;
   case 'fbOut':fbSignOut();break;
   case 'fbSync':fbSyncNow();break;
   case 'fbCloud':fbResolve('cloud');break;
@@ -863,6 +866,7 @@ const fbSig=()=>{const o=Object.assign({},S);['active','rest','pnotified','ppre'
 const fbPayload=()=>{const o=JSON.parse(JSON.stringify(S));['active','rest','pnotified','ppre','_sync','_ssig'].forEach(k=>delete o[k]);return JSON.stringify(o)};
 const fbHasData=o=>(o.sessions||[]).length>0||(o.coins||0)>0||(o.unlocked||[]).length>1;
 const fbErr=e=>{const c=(e&&(e.code||e.message))||'';
+ if(/dynamically imported|Failed to fetch|importing a module|Load failed|load-timeout/i.test(c))return 'تعذّر تحميل خدمة الدخول (النت ضعيف أو متقطع). اضغط إعادة المحاولة';
  if(/unauthorized-domain/.test(c))return 'الدومين ده مش مضاف في Authorized domains في Firebase';
  if(/popup-blocked/.test(c))return 'المتصفح منع نافذة الدخول، اسمح بالنوافذ المنبثقة وجرّب تاني';
  if(/popup-closed|cancelled-popup/.test(c))return 'قفلت نافذة الدخول قبل ما تخلص';
@@ -877,7 +881,7 @@ function fbLoad(){if(FB)return Promise.resolve(FB);if(fbP)return fbP;fbP=fbLoad0
 async function fbLoad0(){
  if(FB)return FB;
  const b='https://www.gstatic.com/firebasejs/'+FBV+'/';
- const [A,AU,FS]=await Promise.all([import(b+'firebase-app.js'),import(b+'firebase-auth.js'),import(b+'firebase-firestore.js')]);
+ const [A,AU,FS]=await Promise.race([Promise.all([import(b+'firebase-app.js'),import(b+'firebase-auth.js'),import(b+'firebase-firestore.js')]),new Promise((_,rj)=>setTimeout(()=>rj(new Error('load-timeout')),20000))]);
  const app=A.initializeApp(FBC);
  const auth=AU.getAuth(app);
  let db;try{db=FS.initializeFirestore(app,{experimentalAutoDetectLongPolling:true})}catch(e){db=FS.getFirestore(app)}
@@ -887,7 +891,8 @@ async function fbLoad0(){
   else{fbReady=false}
   acctRefresh()});
  return FB}
-function fbInit(){if(navigator.onLine!==false)fbLoad().catch(e=>{fbMsg=fbErr(e);fbAuthKnown=true;acctRefresh()})}
+let fbTry=0;
+function fbInit(){if(navigator.onLine===false)return;fbLoad().catch(e=>{if(++fbTry<3){setTimeout(fbInit,fbTry*2500);return}fbMsg=fbErr(e);fbAuthKnown=true;acctRefresh()})}
 function fbDoc(){return FB.FS.doc(FB.db,'users',fbUser.uid)}
 async function fbPushNow(){
  if(!FB||!fbUser||!fbReady)return;
@@ -1013,7 +1018,7 @@ function gateRender(){
  gateBuild(g,waiting?'wait':'login');
  if(!waiting)gateUpdate(g);
 }
-window.addEventListener('online',()=>{if(!FB)fbInit();gateRender()});
+window.addEventListener('online',()=>{if(!FB){fbTry=0;fbInit()}gateRender()});
 window.addEventListener('offline',gateRender);
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'){fbPull(false)}
