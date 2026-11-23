@@ -441,7 +441,7 @@ function resumeRun(){
 
 /* ---------- Surah Yasin during breaks (optional) ---------- */
 const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"},{"name":"أحمد النفيس","url":"audio/yasin-9.mp3"},{"name":"أحمد كاسب","url":"audio/yasin-10.mp3"},{"name":"د. أحمد العربي","url":"audio/yasin-11.mp3"}];
-const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null,yWait=false;const YBAD=new Set((()=>{try{return JSON.parse(localStorage.getItem('forest-ybad')||'[]')}catch(e){return[]}})());const ySaveBad=()=>{try{localStorage.setItem('forest-ybad',JSON.stringify([...YBAD]))}catch(e){}};
+const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null,yWait=false;const YBAD=new Set();try{localStorage.removeItem('forest-ybad')}catch(e){}const ySaveBad=()=>{};
 yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!yu.src.startsWith('blob:')){ALT[u]=1;yu.src=altUrl(u);yu.load();yReady=Promise.resolve();yPlay();return}
