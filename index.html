@@ -1155,5 +1155,8 @@ offReady.then(()=>setTimeout(autoDlMaybe,6000));
 window.addEventListener('online',()=>{YBAD.clear();offRound=0;setTimeout(autoDlMaybe,2000)});
 try{const nc=navigator.connection;nc&&nc.addEventListener&&nc.addEventListener('change',()=>setTimeout(autoDlMaybe,2000))}catch(e){}
 </script>
+
+<!-- Firebase Cloud Messaging notifications -->
+<script type="module" src="./notifications.js"></script>
 </body>
 </html>
