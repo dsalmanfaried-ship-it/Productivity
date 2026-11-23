@@ -50,7 +50,7 @@ self.addEventListener("notificationclick", event => {
 
 /* غابتي – service worker: يخزّن هيكل التطبيق للعمل بدون إنترنت.
    ملفات الصوت بتتنزّل من جوه التطبيق (زرار "تنزيل للاستخدام بدون نت") وبتتخزن في IndexedDB. */
-const CACHE = 'ghabaty-shell-v14';
+const CACHE = 'ghabaty-shell-v15';
 const SHELL = ['./', 'index.html', '404.html', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png', 'notifications.js'];
 
 self.addEventListener('install', e => {
