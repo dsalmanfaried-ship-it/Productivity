@@ -7,7 +7,7 @@ try {
   );
 
   firebase.initializeApp({
-    apiKey: "AIzaSyBx-g2J7OBvYznTSo9Nb0XJJCGAdNTuAjfU",
+    apiKey: "AIzaSyBx-g2J7OBvYznTSo9Nb0XJCGAdNTuAjfU",
     authDomain: "ghabaty-84b32.firebaseapp.com",
     projectId: "ghabaty-84b32",
     storageBucket: "ghabaty-84b32.firebasestorage.app",
@@ -50,7 +50,7 @@ self.addEventListener("notificationclick", event => {
 
 /* غابتي – service worker: يخزّن هيكل التطبيق للعمل بدون إنترنت.
    ملفات الصوت بتتنزّل من جوه التطبيق (زرار "تنزيل للاستخدام بدون نت") وبتتخزن في IndexedDB. */
-const CACHE = 'ghabaty-shell-v13';
+const CACHE = 'ghabaty-shell-v14';
 const SHELL = ['./', 'index.html', '404.html', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png', 'notifications.js'];
 
 self.addEventListener('install', e => {
@@ -75,17 +75,3 @@ self.addEventListener('fetch', e => {
       .catch(() => caches.match(req).then(r => r || caches.match('index.html')))
   );
 });
-from pathlib import Path
-
-src = Path("/mnt/data/sw.js")
-content = src.read_text(encoding="utf-8")
-old = "AIzaSyBx-g2J7OBvYznTSo9Nb0XJJCGAdNTuAjfU"
-new = "AIzaSyBx-g2J7OBvYznTSo9Nb0XJCGAdNTuAjfU"
-
-if content.count(old) != 1:
-    raise ValueError("القيمة القديمة لم تظهر مرة واحدة بالضبط؛ لم أعدّل الملف.")
-
-out = Path("/mnt/data/sw-fixed.js")
-out.write_text(content.replace(old, new), encoding="utf-8")
-print("تم إنشاء النسخة المصححة: sw-fixed.js")
-print("التغيير الوحيد: توحيد apiKey مع القيمة الموجودة في index.html و notifications.js.")
