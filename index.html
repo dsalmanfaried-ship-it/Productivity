@@ -129,7 +129,7 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 </head>
 <body>
 <div class="app">
-  <header><h1>🌲 غابتي</h1><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <header><h1>🌲 غابتي</h1><div style="display:flex;gap:8px;align-items:center"><button class="coin" id="acctBtn" data-act="acct" aria-label="حسابي" style="border:0;cursor:pointer;font:inherit;color:inherit">👤</button><div class="coin">🪙 <span id="coins">0</span></div></div></header>
   <main id="main"></main>
 </div>
 <nav><div class="in" id="nav"></div></nav>
@@ -900,7 +900,7 @@ function acctHtml(){
 function acctSheet(){
  sheet('<h2>👤 حسابي</h2><div id="acctBox">'+acctHtml()+'</div>');
  if(!FB&&!fbLoading){fbLoading=true;fbMsg='';fbLoad().catch(e=>{fbMsg=fbErr(e)}).finally(()=>{fbLoading=false;acctRefresh()})}}
-function acctRefresh(){const x=$('#acctBox');if(x&&$('#sheet').classList.contains('on'))x.innerHTML=acctHtml()}
+function acctRefresh(){const bt=$('#acctBtn');if(bt)bt.textContent=fbUser?'☁️':'👤';const x=$('#acctBox');if(x&&$('#sheet').classList.contains('on'))x.innerHTML=acctHtml()}
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'){fbPull(false)}
  else if(fbReady&&fbUser&&fbHash(fbSig())!==S._ssig){fbPushNow().catch(()=>{})}});
