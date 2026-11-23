@@ -233,13 +233,13 @@ function offSheet(){
 
 async function checkFiles(){try{YBAD.clear();localStorage.removeItem('forest-ybad')}catch(e){}
  sheet('<h2>🔍 فحص ملفات الصوت</h2><p class="muted" id="chk">⏳ بفحص الملفات…</p>');
- const all=[...BI.map(x=>({u:x.url,n:'البقرة – '+RN[x.reciter]+' – '+x.name})),...YASIN.map(x=>({u:x.url,n:'يس – '+x.name}))];
- let ok=0;const miss=[];
+ const all=[...BI.map(x=>({u:x.url,n:'البقرة – '+RN[x.reciter]+' – '+x.name})),...YASIN.map(x=>({u:x.url,n:'يس – '+x.name,sz:x.sz}))];
+ let ok=0;const miss=[],odd=[];
  for(const f of all){let good=false;
-  for(const u of [f.u,altUrl(f.u)]){try{const r=await fetch(u,{method:'HEAD'});if(r.ok){good=true;if(u!==f.u)ALT[f.u]=1;break}}catch(e){}}
+  for(const u of [f.u,altUrl(f.u)]){try{const r=await fetch(u,{method:'HEAD'});if(r.ok){good=true;const L=+r.headers.get('content-length')||0;if(f.sz&&L&&Math.abs(L-f.sz)>2000)odd.push({n:f.n,L,sz:f.sz});if(u!==f.u)ALT[f.u]=1;break}}catch(e){}}
   good?ok++:miss.push(f)}
- sheet(`<h2>🔍 نتيجة فحص ملفات الصوت</h2><p style="font-size:18px;font-weight:700;color:${miss.length?'var(--red)':'var(--leaf)'}">${miss.length?'❌':'✔'} ${ok} من ${all.length} ملف موجود</p>
- ${miss.length?`<p class="muted">الملفات الناقصة (ارفعها جنب index.html في المستودع):</p>${miss.map(f=>`<div class="row" style="cursor:default"><span style="flex:1">${esc(f.n)}<br><small class="muted" style="direction:ltr;display:block;text-align:left">${esc(altUrl(f.u))}</small></span></div>`).join('')}`:'<p class="muted">كل الملفات موجودة وبتشتغل.</p>'}
+ sheet(`<h2>🔍 نتيجة فحص ملفات الصوت</h2><p style="font-size:18px;font-weight:700;color:${miss.length||odd.length?'var(--red)':'var(--leaf)'}">${miss.length||odd.length?'❌':'✔'} ${ok} من ${all.length} ملف موجود</p>${odd.length?`<p class="muted">ملفات موجودة بس حجمها مختلف (غالبًا اترفعت ناقصة – ارفعها تاني):</p>${odd.map(o=>`<div class="row" style="cursor:default"><span style="flex:1">${esc(o.n)}<br><small class="muted">على الموقع ${(o.L/1048576).toFixed(1)} ميجا – المفروض ${(o.sz/1048576).toFixed(1)} ميجا</small></span></div>`).join('')}`:''}
+ ${miss.length?`<p class="muted">الملفات الناقصة (ارفعها جنب index.html في المستودع):</p>${miss.map(f=>`<div class="row" style="cursor:default"><span style="flex:1">${esc(f.n)}<br><small class="muted" style="direction:ltr;display:block;text-align:left">${esc(altUrl(f.u))}</small></span></div>`).join('')}`:(odd.length?'':'<p class="muted">كل الملفات موجودة وبتشتغل.</p>')}
  <button class="big ghost" data-act="close">إغلاق</button>`);
 }
 async function offDownload(which){
@@ -440,13 +440,19 @@ function resumeRun(){
 
 
 /* ---------- Surah Yasin during breaks (optional) ---------- */
-const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"},{"name":"أحمد النفيس","url":"audio/yasin-9.mp3"},{"name":"أحمد كاسب","url":"audio/yasin-10.mp3"},{"name":"د. أحمد العربي","url":"audio/yasin-11.mp3"}];
+const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"},{"name":"أحمد النفيس","url":"audio/yasin-9.mp3","sz":7895809},{"name":"أحمد كاسب","url":"audio/yasin-10.mp3","sz":7166471},{"name":"د. أحمد العربي","url":"audio/yasin-11.mp3","sz":11604361}];
 const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null,yWait=false;const YBAD=new Set();try{localStorage.removeItem('forest-ybad')}catch(e){}const ySaveBad=()=>{};
+function yDiag(c,src,ec){const y=YASIN[c],nm=y.name,fn=y.url.replace('audio/','');toast('تعذّر تشغيل '+nm+' – بنختار شيخ تاني 🔄');
+ if(!src||src.startsWith('blob:'))return;
+ fetch(src,{method:'HEAD'}).then(r=>{const L=+r.headers.get('content-length')||0;
+  if(!r.ok)banner('ملف '+nm+' مش موجود على الموقع (الحالة '+r.status+')','اتأكد إنه مرفوع في فولدر audio باسم '+fn+' بالظبط.');
+  else banner('ملف '+nm+' موجود بس الجهاز مش قادر يشغّله','كود الخطأ '+ec+(L?' – حجم الملف على الموقع '+(L/1048576).toFixed(1)+' ميجا':'')+(y.sz&&L&&Math.abs(L-y.sz)>2000?' (المفروض '+(y.sz/1048576).toFixed(1)+' ميجا – غالبًا اترفع ناقص، ارفعه تاني)':'')+'.')
+ }).catch(()=>banner('تعذّر تشغيل '+nm,'ممكن النت واقف أو الملف مش مرفوع ('+fn+').'))}
 yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!yu.src.startsWith('blob:')){ALT[u]=1;yu.src=altUrl(u);yu.load();yReady=Promise.resolve();yPlay();return}
  const c=S.yasin.cur;
- if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();toast('ملف '+YASIN[c].name+' مش موجود – بنختار شيخ تاني 🔄');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart(true,true)}
+ if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();yDiag(c,yu.src,yu.error?yu.error.code:0);S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart(true,true)}
 };
 function showName(n){
  const d=document.createElement('div');d.className='yname';
