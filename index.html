@@ -854,22 +854,39 @@ document.addEventListener('click',e=>{
   case 'resetYes':{const g=S.grace;S=def();S.grace=g;save();closeSheet();render()}break;
  }
 });
-try{if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
+try{if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){const hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.register('sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadCtl)toast('فيه تحديث جديد للتطبيق ✔ حدّث الصفحة عشان يظهر')})}}catch(e){}
 
 /* ---------- حساب جوجل + مزامنة (Firebase) ---------- */
 const FBC={apiKey:"AIzaSyBx-g2J7OBvYznTSo9Nb0XJCGAdNTuAjfU",authDomain:"ghabaty-84b32.firebaseapp.com",projectId:"ghabaty-84b32",storageBucket:"ghabaty-84b32.firebasestorage.app",messagingSenderId:"872681239030",appId:"1:872681239030:web:ed56a9cfd6994b317a57d7"};
 const FBV='10.14.1';
 let fbSigning=false,fbAuthKnown=false;
 let FB=null,fbUser=null,fbLoading=false,fbReady=false,fbMsg='',fbTimer=null,fbLastAt=+(localStorage.getItem('forest-fb-last')||0),fbPending=null,fbBusy=false;
+const fbT=(p,ms)=>Promise.race([p,new Promise((_,rj)=>setTimeout(()=>rj(new Error('network timeout')),ms||15000))]);
+function fbBind(u){
+ const owner=S._uid;
+ if(owner&&owner!==u.uid){
+  /* البيانات اللي على الجهاز بتاعة حساب تاني: نركنها ونبدأ نضيف لحساب الداخل */
+  try{localStorage.setItem('forest-acct-'+owner,JSON.stringify(S))}catch(e){}
+  let next=null;
+  try{const st=localStorage.getItem('forest-acct-'+u.uid);if(st){next=JSON.parse(st);localStorage.removeItem('forest-acct-'+u.uid)}}catch(e){next=null}
+  const live={active:S.active,rest:S.rest,pnotified:S.pnotified,ppre:S.ppre},dev={pray:S.pray,grace:S.grace};
+  S=next?Object.assign(def(),next,live):Object.assign(def(),dev,live);
+  S._uid=u.uid;
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  toast('دخلت بحساب تاني. بيانات الحساب اللي قبله اتحفظت على الجهاز');
+  try{render()}catch(e){}
+  return}
+ if(S._uid!==u.uid){S._uid=u.uid;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+}
 const fbHash=t=>{let x=0;for(let i=0;i<t.length;i++)x=(x*31+t.charCodeAt(i))|0;return String(x)};
-const fbSig=()=>{const o=Object.assign({},S);['active','rest','pnotified','ppre','qpos','_sync','_ssig'].forEach(k=>delete o[k]);o.yasin=Object.assign({},o.yasin);delete o.yasin.t;delete o.yasin.cur;delete o.yasin.last;return JSON.stringify(o)};
-const fbPayload=()=>{const o=JSON.parse(JSON.stringify(S));['active','rest','pnotified','ppre','_sync','_ssig'].forEach(k=>delete o[k]);return JSON.stringify(o)};
+const fbSig=()=>{const o=Object.assign({},S);['active','rest','pnotified','ppre','qpos','_sync','_ssig','_uid'].forEach(k=>delete o[k]);o.yasin=Object.assign({},o.yasin);delete o.yasin.t;delete o.yasin.cur;delete o.yasin.last;return JSON.stringify(o)};
+const fbPayload=()=>{const o=JSON.parse(JSON.stringify(S));['active','rest','pnotified','ppre','_sync','_ssig','_uid'].forEach(k=>delete o[k]);return JSON.stringify(o)};
 const fbHasData=o=>(o.sessions||[]).length>0||(o.coins||0)>0||(o.unlocked||[]).length>1;
 const fbErr=e=>{const c=(e&&(e.code||e.message))||'';
  if(/dynamically imported|Failed to fetch|importing a module|Load failed|load-timeout/i.test(c))return 'تعذّر تحميل خدمة الدخول (النت ضعيف أو متقطع). اضغط إعادة المحاولة';
  if(/unauthorized-domain/.test(c))return 'الدومين ده مش مضاف في Authorized domains في Firebase';
  if(/popup-blocked/.test(c))return 'المتصفح منع نافذة الدخول، اسمح بالنوافذ المنبثقة وجرّب تاني';
- if(/popup-closed|cancelled-popup/.test(c))return 'قفلت نافذة الدخول قبل ما تخلص';
+ if(/popup-closed|cancelled-popup/.test(c))return '';
  if(/permission-denied/.test(c))return 'قواعد الأمان في Firestore مش متظبطة (permission-denied)';
  if(/network|unavailable|offline/.test(c))return 'مفيش اتصال بالإنترنت دلوقتي';
  if(/operation-not-supported|web-storage-unsupported/.test(c))return 'المتصفح ده مش بيدعم الدخول. افتح الموقع من كروم أو سفاري مباشرة';
@@ -887,7 +904,7 @@ async function fbLoad0(){
  let db;try{db=FS.initializeFirestore(app,{experimentalAutoDetectLongPolling:true})}catch(e){db=FS.getFirestore(app)}
  FB={AU,FS,auth,db};
  AU.onAuthStateChanged(auth,u=>{fbUser=u||null;fbAuthKnown=true;
-  if(u){try{localStorage.setItem('forest-fb-on','1')}catch(e){}fbPull(false)}
+  if(u){try{localStorage.setItem('forest-fb-on','1')}catch(e){}fbBind(u);fbPull(false)}
   else{fbReady=false}
   acctRefresh()});
  return FB}
@@ -908,7 +925,7 @@ function fbPush(){
  fbTimer=setTimeout(()=>{fbTimer=null;if(fbHash(fbSig())!==S._ssig)fbPushNow().catch(e=>{fbMsg=fbErr(e);acctRefresh()})},8000)}
 window.fbPush=fbPush;
 function fbAdopt(cd,cm){
- const keep={active:S.active,rest:S.rest,pnotified:S.pnotified,ppre:S.ppre};
+ const keep={active:S.active,rest:S.rest,pnotified:S.pnotified,ppre:S.ppre,_uid:S._uid};
  try{localStorage.setItem('forest-fb-backup',JSON.stringify(S))}catch(e){}
  S=Object.assign(def(),cd,keep);S._sync=cm;S._ssig=fbHash(fbSig());
  try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('forest-fb-last',String(cm))}catch(e){}
@@ -917,7 +934,7 @@ async function fbPull(manual){
  if(!FB||!fbUser||fbBusy)return;
  fbBusy=true;
  try{
-  const snap=await FB.FS.getDoc(fbDoc());
+  const snap=await fbT(FB.FS.getDoc(fbDoc()));
   if(!snap.exists()){fbReady=true;await fbPushNow();return}
   const c=snap.data();let cd;try{cd=JSON.parse(c.data)}catch(e){fbMsg='بيانات الحساب تالفة';acctRefresh();return}
   const cm=+c.mod||0,localChanged=fbHash(fbSig())!==S._ssig,synced=!!S._sync;
@@ -945,7 +962,7 @@ function fbSignIn(){
 const inApp=/FBAN|FBAV|Instagram|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent||'');
 function fbSignOut(){
  if(!FB)return;
- FB.AU.signOut(FB.auth).then(()=>{try{localStorage.removeItem('forest-fb-on')}catch(e){}delete S._sync;delete S._ssig;fbReady=false;fbMsg='';try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}acctRefresh();toast('اتسجّل الخروج. بياناتك لسه على الجهاز')}).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
+ FB.AU.signOut(FB.auth).then(()=>{try{localStorage.removeItem('forest-fb-on')}catch(e){}if(!S._uid){delete S._sync;delete S._ssig}fbReady=false;fbMsg='';try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}acctRefresh();toast('اتسجّل الخروج. بياناتك لسه على الجهاز')}).catch(e=>{fbMsg=fbErr(e);acctRefresh()})}
 function fbSyncNow(){
  if(!FB||!fbUser)return;
  if(fbReady&&fbHash(fbSig())!==S._ssig){fbPushNow().then(()=>toast('اتزامنت ✔')).catch(e=>{fbMsg=fbErr(e);acctRefresh()});return}
@@ -974,7 +991,7 @@ function gateLeaves(){let o='';for(let i=0;i<9;i++)o+=`<i style="left:${Math.rou
 function gateBuild(g,st){
  if(gateSt===st)return;
  clearTimeout(gateT);clearTimeout(gateW);gateSt=st;
- g.className='on';
+ g.className='on';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-label','تسجيل الدخول');
  const top=`<div class="gleaves">${gateLeaves()}</div><div class="gwrap"><div class="gglow"></div><div class="gtree">${treeSVG('oak',1,false)}</div><h1 class="gt" id="gT">🌲 غابتي</h1>`;
  if(st==='wait'){
   g.innerHTML=top+'<p class="gs" id="gS">جاري التحقق من حسابك<span class="gdots"></span></p></div>';
