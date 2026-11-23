@@ -14,11 +14,7 @@ const firebaseConfig = {
   appId: "1:872681239030:web:ed56a9cfd6994b317a57d7"
 };
 const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWxqDj70SnDwRxk7wINKrODmHl5PE";
-// اسم بوت تيليجرام بتاعك من غير @ (مثال: GhabatyBot). لو سيبته فاضي، الزرار مش هيظهر.
-const BOT_USERNAME_RAW = "FORESTsolybot";
-const BOT_USERNAME = /^[A-Za-z0-9_]{4,32}$/.test(BOT_USERNAME_RAW) ? BOT_USERNAME_RAW : "";
 const LS_KEY = "ghabaty-reminders";
-const newLinkCode = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -230,22 +226,8 @@ async function openModal() {
     winEnd: cfg.winEnd || "22:00",
     times: new Set(Array.isArray(cfg.times) ? cfg.times : ["08:00", "20:00"]),
     randomMsg: cfg.randomMsg !== false,
-    chatId: cfg.chatId ? String(cfg.chatId) : ""
+    chatId: cfg.chatId || ""
   };
-  let initialChat = st.chatId;
-  // كود ربط سري: البوت بيستخدمه لما المستخدم يدوس Start عشان يربط الحساب تلقائي
-  let linkCode = cfg.linkCode || "";
-  const fresh = BOT_USERNAME && !linkCode;
-  if (fresh) linkCode = newLinkCode();
-  const botHref = () => "https://t.me/" + BOT_USERNAME + (linkCode ? "?start=" + linkCode : "");
-  if (fresh) {
-    setDoc(settingsRef(), { linkCode }, { merge: true }).catch(e => {
-      console.warn("[Notifications] link code save failed", e);
-      linkCode = "";
-      const a = document.getElementById("ntfBot");
-      if (a) a.href = botHref();
-    });
-  }
 
   const wrap = document.createElement("div");
   wrap.id = "ntfModal";
@@ -290,15 +272,10 @@ async function openModal() {
     <input id="ntfMsg" style="${field}" placeholder="اكتب نص التذكير">
 
     <hr style="width:100%;border:0;border-top:1px solid #3d7a56">
-    <div style="font-weight:700">✈️ تذكيرات تيليجرام</div>
-    ${BOT_USERNAME ? `
-    <a id="ntfBot" href="${botHref()}" target="_blank" rel="noopener" style="${btn};background:#2f6b4a;color:#fff;text-align:center;text-decoration:none;display:block">🤖 افتح البوت واضغط Start</a>
-    <small style="opacity:.85">بعد Start البوت بيربط حسابك تلقائي (ممكن ياخد كام دقيقة) ويبعتلك رقمك. وتقدر كمان تلصق الرقم تحت بنفسك.</small>
-    <button id="ntfCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>`
-    : `<small style="opacity:.85">ابعت أي رسالة للبوت وهيرد عليك برقمك (Chat ID)، والصقه تحت.</small>`}
     <label>رقم تيليجرام (Chat ID)
       <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
     </label>
+    <small style="opacity:.85">البوت بتاعك هيبعتلك على الرقم ده. افتح البوت مرة واحدة واضغط Start، وتعرف رقمك من @userinfobot.</small>
 
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
@@ -354,18 +331,6 @@ async function openModal() {
   };
   $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
-  const chk = $("#ntfCheck");
-  if (chk) chk.onclick = async () => {
-    try {
-      const snap = await getDoc(settingsRef());
-      const c = snap.exists() ? snap.data().chatId : "";
-      if (c) {
-        st.chatId = initialChat = String(c);
-        $("#ntfChat").value = st.chatId;
-        notifyUser("اتربط حسابك بتيليجرام ✔");
-      } else notifyUser("لسه ما اتربطش. دوس Start في البوت وجرّب بعد كام دقيقة.");
-    } catch (e) { notifyUser(explainError(e)); }
-  };
 
   $("#ntfSave").onclick = async ev => {
     const b = ev.currentTarget;
@@ -382,11 +347,9 @@ async function openModal() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
       const data = {
         mode: st.mode, count: st.count, winStart: st.winStart, winEnd: st.winEnd,
-        times, randomMsg: st.randomMsg, message, tz,
+        times, randomMsg: st.randomMsg, message, chatId: st.chatId, tz,
         enabled: true, updatedAt: serverTimestamp()
       };
-      // ما نمسحش رقم اتربط تلقائي من البوت وإحنا فاتحين النافذة، إلا لو المستخدم مسحه بإيده
-      if (st.chatId || initialChat) data.chatId = st.chatId;
       await setDoc(settingsRef(), data, { merge: true });
       writeLocalCfg({ ...readLocalCfg(), ...data, updatedAt: undefined, uid: currentUser.uid });
       notifyUser("اتحفظت الإعدادات ✔");
