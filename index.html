@@ -917,6 +917,7 @@ document.addEventListener('click',e=>{
   case 'auto':S.autoDur=!S.autoDur;save();render();break;
   case 'pause':pauseRun();closeSheet();break;
   case 'resume':resumeRun();closeSheet();break;
+  case 'notifFCM':{const b=el;b.disabled=true;const old=b.textContent;b.textContent='⏳ جاري التفعيل…';if(typeof window.enableForestNotifications!=='function'){toast('ملف الإشعارات لم يتم تحميله');b.disabled=false;b.textContent=old;break}window.enableForestNotifications().then(msg=>toast(msg)).catch(err=>toast('تعذّر التفعيل: '+(err&&err.message||'خطأ غير معروف'))).finally(()=>{b.disabled=false;b.textContent=old})}break;
   case 'notif':try{Notification.requestPermission().then(r=>toast(r==='granted'?'اتفعّلت ✔':'المتصفح مسمحش بالإشعارات'),()=>toast('الإشعارات مش متاحة هنا'))}catch(err){toast('الإشعارات مش متاحة هنا')}break;
   case 'giveup':sheet(`<h2 style="font-size:19px">متأكد إنك عايز تستسلم؟</h2><p class="muted">الشجرة هتموت 🥀</p><button class="big" data-act="close">كمّل تركيز 💪</button><button class="big ghost" data-act="giveupYes">أيوه، استسلم</button>`,true);break;
   case 'giveupYes':closeSheet();finish(false);break;
@@ -1075,7 +1076,7 @@ function acctHtml(){
  if(navigator.onLine===false)b+='<p class="muted">مفيش نت دلوقتي. التطبيق شغال عادي، والمزامنة هتتم لما النت يرجع.</p>';
  if(fbUser){
   const t=fbLastAt?new Date(fbLastAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'لسه';
-  b+=`<div class="row sel">✔ داخل بحساب: ${esc(fbUser.email||fbUser.displayName||'')}</div><p class="muted">آخر مزامنة: ${t}<br>التغييرات بتترفع تلقائيًا، وبتتحدّث بياناتك لما تفتح التطبيق على أي جهاز بنفس الحساب.</p><button class="big" data-act="fbSync">🔄 مزامنة دلوقتي</button><button class="big ghost" data-act="fbOut">تسجيل الخروج</button>`}
+  b+=`<div class="row sel">✔ داخل بحساب: ${esc(fbUser.email||fbUser.displayName||'')}</div><p class="muted">آخر مزامنة: ${t}<br>التغييرات بتترفع تلقائيًا، وبتتحدّث بياناتك لما تفتح التطبيق على أي جهاز بنفس الحساب.</p><button class="big" data-act="notifFCM">🔔 تفعيل إشعارات المذاكرة</button><p class="muted">تحتاج HTTPS ومفتاح Web Push من إعدادات Firebase.</p><button class="big" data-act="fbSync">🔄 مزامنة دلوقتي</button><button class="big ghost" data-act="fbOut">تسجيل الخروج</button>`}
  else if(!FB){b+=fbLoading?'<p class="muted">⏳ جاري تحميل خدمة الدخول…</p>':'<p class="muted">خدمة الدخول مش متحمّلة (محتاجة نت).</p>'}
  else b+='<p class="muted">سجّل دخول بحساب جوجل عشان بياناتك (الغابة والسولي كوين والإحصائيات والإعدادات) تتحفظ على حسابك وتظهر على أي جهاز.</p>'+(inApp?'<p class="warn">الظاهر إنك فاتح الموقع من جوه تطبيق (واتساب/فيسبوك…). جوجل بتمنع الدخول من هنا، افتح الرابط في كروم أو سفاري.</p>':'')+(fbSigning?'<button class="big" disabled>⏳ بنفتح نافذة جوجل…</button>':'<button class="big" data-act="fbIn">🔐 دخول بحساب جوجل</button>');
  if(fbMsg)b+=`<p style="color:#f2994a">⚠️ ${esc(fbMsg)}</p>`;
