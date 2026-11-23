@@ -1,6 +1,6 @@
 // يشتغل كل 5 دقايق من GitHub Actions:
-// 1) يربط تيليجرام تلقائيًا لما المستخدم يضغط Start من رابط التطبيق
-// 2) يبعت التذكيرات (تيليجرام + Push المتصفح). الأسرار من GitHub Secrets فقط.
+// يبعت التذكيرات (تيليجرام على الرقم اللي المستخدم كتبه + Push المتصفح).
+// الأسرار من GitHub Secrets فقط.
 import admin from "firebase-admin";
 
 const SA = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -11,7 +11,6 @@ const WINDOW_MIN = Number(process.env.WINDOW_MIN || 14);
 if (!SA) { console.error("FIREBASE_SERVICE_ACCOUNT secret is missing"); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(SA)) });
 const db = admin.firestore();
-const FV = admin.firestore.FieldValue;
 
 const MESSAGES = [
   "حان وقت التركيز 🌳 افتح غابتي وابدأ جلسة جديدة.",
@@ -109,38 +108,6 @@ for (const userRef of await db.collection("users").listDocuments()) {
   const ref = userRef.collection("settings").doc("reminders");
   const snap = await ref.get();
   if (snap.exists) entries.push({ userRef, ref, cfg: snap.data() });
-}
-
-// ---- ربط تيليجرام تلقائيًا ----
-if (BOT) {
-  const me = await tg("getMe");
-  const botName = me.result?.username;
-  if (botName) {
-    for (const e of entries) if (e.cfg.botUsername !== botName) {
-      await e.ref.set({ botUsername: botName }, { merge: true });
-      e.cfg.botUsername = botName;
-    }
-  }
-  const upd = await tg("getUpdates", { timeout: 0, allowed_updates: ["message"] });
-  let last = 0;
-  for (const u of upd.result || []) {
-    last = Math.max(last, u.update_id);
-    const m = u.message;
-    if (!m || m.chat?.type !== "private") continue;
-    const text = m.text || "";
-    if (!/^\/start/.test(text)) continue;
-    const code = (text.match(/^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,32})$/) || [])[1];
-    const e = code && entries.find(x => x.cfg.linkCode === code && Date.now() - (x.cfg.linkAt || 0) < 24 * 3600 * 1000);
-    if (e) {
-      await e.ref.set({ chatId: String(m.chat.id), linkCode: FV.delete(), linkAt: FV.delete() }, { merge: true });
-      e.cfg.chatId = String(m.chat.id);
-      await tg("sendMessage", { chat_id: m.chat.id, text: "تم ربط غابتي بتيليجرام ✅ هتوصلك التذكيرات هنا." });
-      console.log(`linked telegram for user ${e.userRef.id}`);
-    } else {
-      await tg("sendMessage", { chat_id: m.chat.id, text: "افتح غابتي: حسابي > إعدادات الإشعارات > ربط تيليجرام تلقائيًا، وبعدين اضغط الرابط اللي هيظهر." });
-    }
-  }
-  if (last) await tg("getUpdates", { offset: last + 1, timeout: 0 });
 }
 
 // ---- إرسال التذكيرات ----
