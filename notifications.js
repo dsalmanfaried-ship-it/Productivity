@@ -2,7 +2,7 @@
    Adds notification opt-in only. Existing login, forest data and UI are not replaced. */
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getMessaging, getToken, isSupported, onMessage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 
 const firebaseConfig = {
@@ -17,7 +17,12 @@ const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWx
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// Firestore is created lazily (at click time) with the SAME options index.html uses,
+// so we never "pre-initialize" it with different settings before index.html does.
+function getDb() {
+  try { return initializeFirestore(app, { experimentalAutoDetectLongPolling: true }); }
+  catch (e) { return getFirestore(app); }
+}
 
 let currentUser = null;
 let messaging = null;
@@ -47,6 +52,39 @@ async function prepareMessaging() {
   ready = true;
 }
 
+function explainError(error) {
+  const code = String(error?.code || "");
+  const raw = String(error?.message || "");
+  if (code.includes("permission-blocked")) return "إذن الإشعارات متبلوك. فعّله من إعدادات الموقع (القفل جنب الرابط) ثم حدّث الصفحة.";
+  if (code.includes("token-subscribe-failed") || /401|403|API key|registration/i.test(raw))
+    return "فشل الاشتراك [" + (code || "subscribe") + "]: غالبًا مفتاح VAPID مش مطابق للي في Firebase Console، أو الـ API key عليه قيود. راجع README.";
+  if (code.includes("failed-service-worker-registration") || code.includes("sw-registration"))
+    return "فشل تسجيل sw.js. اتأكد إن الملف موجود جنب index.html وإن الموقع على https.";
+  if (code.includes("unsupported-browser")) return "المتصفح ده مش بيدعم إشعارات Firebase.";
+  if (code.includes("permission-denied") || /Missing or insufficient permissions/i.test(raw))
+    return "قواعد Firestore رفضت الحفظ. تأكد إن قواعد users/{uid}/fcmTokens منشورة.";
+  return (code ? "[" + code + "] " : "") + (raw || "حصلت مشكلة أثناء تفعيل الإشعارات.");
+}
+
+async function obtainToken(registration) {
+  const opts = { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration };
+  try {
+    return await getToken(messaging, opts);
+  } catch (first) {
+    // Common cause: an old push subscription created with a different key blocks the new one.
+    try {
+      const sub = await registration.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        return await getToken(messaging, opts);
+      }
+    } catch (second) {
+      throw second;
+    }
+    throw first;
+  }
+}
+
 async function enableNotifications(button) {
   const originalText = button.textContent;
   button.disabled = true;
@@ -70,15 +108,12 @@ async function enableNotifications(button) {
     const registration = await navigator.serviceWorker.register("./sw.js");
     await navigator.serviceWorker.ready;
 
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration
-    });
+    const token = await obtainToken(registration);
     if (!token) throw new Error("لم يتم إنشاء رمز الإشعارات. حاول مرة أخرى.");
 
     // A token is stored only inside the signed-in user's own Firestore subcollection.
     await setDoc(
-      doc(db, "users", currentUser.uid, "fcmTokens", token),
+      doc(getDb(), "users", currentUser.uid, "fcmTokens", token),
       {
         token,
         platform: "web",
@@ -92,7 +127,7 @@ async function enableNotifications(button) {
     notifyUser("تم تفعيل إشعارات المذاكرة بنجاح 🌳");
   } catch (error) {
     console.error("[Notifications] Enable failed:", error);
-    notifyUser(error?.message || "حصلت مشكلة أثناء تفعيل الإشعارات.");
+    notifyUser(explainError(error));
     button.disabled = false;
     button.textContent = originalText || "🔔 إعادة محاولة تفعيل الإشعارات";
   }
