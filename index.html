@@ -225,10 +225,10 @@ function resolveUrl(u){
  return oGet(u).then(b=>b?(OFFU[u]=URL.createObjectURL(b)):(ALT[u]?altUrl(u):u));
 }
 const offReady=oKeys();
-const OFFG={bq:{n:'سورة البقرة (إسلام عثمان + أحمد كاسب)',mb:58,urls:()=>BI.map(x=>x.url)},ys:{n:'سورة يس (٨ شيوخ)',mb:68,urls:()=>YASIN.map(x=>x.url)}};
+const OFFG={bq:{n:'سورة البقرة (إسلام عثمان + أحمد كاسب)',mb:58,urls:()=>BI.map(x=>x.url)},ys:{n:'سورة يس (١١ شيخ)',mb:100,urls:()=>YASIN.map(x=>x.url)}};
 function offSheet(){
  const row=k=>{const g=OFFG[k],u=g.urls(),n=u.filter(x=>OFFK.has(x)).length;return `<div class="row" style="cursor:default"><span style="flex:1">${g.n}<br><small class="muted">حوالي ${g.mb} ميجا • ${n===u.length?'✔ منزّلة':n+' من '+u.length}</small></span>${n===u.length?'':`<button class="sm" data-act="offDl" data-v="${k}">تنزيل</button>`}</div>`};
- sheet(`<h2>📥 تنزيل للاستخدام بدون إنترنت</h2><p class="muted">التلاوات بتتخزن على جهازك وبتشتغل من غير نت. (المواقيت والمؤقت والغابة والإحصائيات شغالين بدون نت أصلًا.)</p>${row('bq')}${row('ys')}<div id="offp" class="muted" style="margin:8px 0;min-height:20px"></div><button class="big" data-act="offDl" data-v="all">تنزيل الكل (حوالي ١٢٦ ميجا)</button><button class="big ghost" data-act="offClear">حذف التنزيلات</button><button class="big ghost" data-act="close">إغلاق</button>`);
+ sheet(`<h2>📥 تنزيل للاستخدام بدون إنترنت</h2><p class="muted">التلاوات بتتخزن على جهازك وبتشتغل من غير نت. (المواقيت والمؤقت والغابة والإحصائيات شغالين بدون نت أصلًا.)</p>${row('bq')}${row('ys')}<div id="offp" class="muted" style="margin:8px 0;min-height:20px"></div><button class="big" data-act="offDl" data-v="all">تنزيل الكل (حوالي ١٥٨ ميجا)</button><button class="big ghost" data-act="offClear">حذف التنزيلات</button><button class="big ghost" data-act="close">إغلاق</button>`);
 }
 
 async function checkFiles(){try{YBAD.clear();localStorage.removeItem('forest-ybad')}catch(e){}
@@ -439,7 +439,7 @@ function resumeRun(){
 
 
 /* ---------- Surah Yasin during breaks (optional) ---------- */
-const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"}];
+const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"},{"name":"أحمد النفيس","url":"audio/yasin-9.mp3"},{"name":"أحمد كاسب","url":"audio/yasin-10.mp3"},{"name":"د. أحمد العربي","url":"audio/yasin-11.mp3"}];
 const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null,yWait=false;const YBAD=new Set((()=>{try{return JSON.parse(localStorage.getItem('forest-ybad')||'[]')}catch(e){return[]}})());const ySaveBad=()=>{try{localStorage.setItem('forest-ybad',JSON.stringify([...YBAD]))}catch(e){}};
 yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
