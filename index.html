@@ -141,7 +141,7 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KEY='forest-web-v1';
-const def=()=>({sessions:[],tags:[{id:'t1',name:'دراسة',color:'#56ccf2'},{id:'t2',name:'شغل',color:'#f2994a'},{id:'t3',name:'قراءة',color:'#bb6bd9'},{id:'t4',name:'رياضة',color:'#6fcf97'}],coins:0,unlocked:['oak'],species:'oak',dur:25,mode:'down',tag:'t1',sound:'none',grace:10,active:null,qr:'islam',qpos:{},pray:{city:'cairo',method:'egypt',auto:'pause',lat:30.0444,lng:31.2357},pnotified:'',ppre:'',yasin:{on:false,cur:null,t:0,last:-1}});
+const def=()=>({sessions:[],tags:[{id:'t1',name:'دراسة',color:'#56ccf2'},{id:'t2',name:'شغل',color:'#f2994a'},{id:'t3',name:'قراءة',color:'#bb6bd9'},{id:'t4',name:'رياضة',color:'#6fcf97'}],coins:0,unlocked:['oak'],species:'oak',dur:25,mode:'down',tag:'t1',sound:'none',grace:10,active:null,qr:'islam',qpos:{},pray:{city:'cairo',method:'egypt',auto:'pause',lat:30.0444,lng:31.2357},pnotified:'',ppre:'',yasin:{on:false,cur:null,t:0,last:-1,auto:true,pick:-1}});
 let S;
 try{S=Object.assign(def(),JSON.parse(localStorage.getItem(KEY))||{})}catch(e){S=def()}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -416,7 +416,7 @@ function vPray(){
   <div class="setrow"><span>طريقة الحساب</span><select id="pmeth">${Object.entries(PMETH).map(([k,v])=>`<option value="${k}" ${c.method===k?'selected':''}>${v.n}</option>`).join('')}</select></div>
   <div class="setrow"><span>وقت الأذان أثناء الجلسة</span><select id="pauto"><option value="pause" ${c.auto==='pause'?'selected':''}>وقّف الجلسة تلقائي</option><option value="ask" ${c.auto==='ask'?'selected':''}>اسألني</option><option value="off" ${c.auto==='off'?'selected':''}>تنبيه بس</option></select></div>
   <div class="setrow"><span>بريك الضحى (نص الصبح)</span><select id="pduha"><option value="1" ${c.duha!==false?'selected':''}>شغّال</option><option value="0" ${c.duha===false?'selected':''}>مقفول</option></select></div>
-  ${YASIN.length?`<div class="setrow"><span>تلاوة سورة يس في بريك المذاكرة (اختياري)</span><select id="pyasin"><option value="0" ${!S.yasin.on?'selected':''}>مقفول</option><option value="1" ${S.yasin.on?'selected':''}>شغّال</option></select></div>`:''}
+  ${YASIN.length?`<div class="setrow"><span>تلاوة سورة يس في بريك المذاكرة (اختياري)</span><select id="pyasin"><option value="0" ${!S.yasin.on?'selected':''}>مقفول</option><option value="1" ${S.yasin.on?'selected':''}>شغّال</option></select></div><div class="setrow"><span>تشغيل يس تلقائي أول البريك</span><select id="pyauto"><option value="1" ${S.yasin.auto!==false?'selected':''}>تلقائي</option><option value="0" ${S.yasin.auto===false?'selected':''}>أنا أشغّله بنفسي</option></select></div>`:''}
   <div class="setrow"><span>بريك الوتر (بين العشاء والفجر)</span><select id="pwitr"><option value="1" ${witrOn()?'selected':''}>شغّال</option><option value="0" ${!witrOn()?'selected':''}>مقفول</option></select></div>
   ${witrOn()?`<div class="setrow"><span>وقت بريك الوتر</span><select id="pwat">${[['after','بعد العشاء بـ ١٥ دقيقة'],['last3','الثلث الأخير من الليل'],['before','قبل الفجر بـ ٣٠ دقيقة']].map(o=>`<option value="${o[0]}" ${(S.pray.witrAt||'after')===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>`:''}
   <div class="setrow"><span>تنبيه قبل الأذان</span><select id="ppre">${[[0,'إيقاف'],[5,'٥ دقايق'],[10,'١٠ دقايق'],[15,'١٥ دقيقة']].map(o=>`<option value="${o[0]}" ${preMin()===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
@@ -440,12 +440,12 @@ function resumeRun(){
 
 /* ---------- Surah Yasin during breaks (optional) ---------- */
 const YASIN=[{"name":"هزاع البلوشي","url":"audio/yasin-1.mp3"},{"name":"أحمد بن طالب","url":"audio/yasin-2.mp3"},{"name":"د. عبدالله القرافي","url":"audio/yasin-3.mp3"},{"name":"أحمد حمادي","url":"audio/yasin-4.mp3"},{"name":"محمد عبادة","url":"audio/yasin-5.mp3"},{"name":"ناصر القطامي","url":"audio/yasin-6.mp3"},{"name":"حسين العزام","url":"audio/yasin-7.mp3"},{"name":"سلمان عبيد المطيري","url":"audio/yasin-8.mp3"}];
-const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null;const YBAD=new Set((()=>{try{return JSON.parse(localStorage.getItem('forest-ybad')||'[]')}catch(e){return[]}})());const ySaveBad=()=>{try{localStorage.setItem('forest-ybad',JSON.stringify([...YBAD]))}catch(e){}};
+const yu=new Audio();yu.preload='auto';let yOn=false,yLast=0,yUrl='',yReady=null,yWait=false;const YBAD=new Set((()=>{try{return JSON.parse(localStorage.getItem('forest-ybad')||'[]')}catch(e){return[]}})());const ySaveBad=()=>{try{localStorage.setItem('forest-ybad',JSON.stringify([...YBAD]))}catch(e){}};
 yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!yu.src.startsWith('blob:')){ALT[u]=1;yu.src=altUrl(u);yu.load();yReady=Promise.resolve();yPlay();return}
  const c=S.yasin.cur;
- if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();toast('ملف '+YASIN[c].name+' مش موجود – بنختار شيخ تاني 🔄');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart()}
+ if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();toast('ملف '+YASIN[c].name+' مش موجود – بنختار شيخ تاني 🔄');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart(true,true)}
 };
 function showName(n){
  const d=document.createElement('div');d.className='yname';
@@ -455,20 +455,27 @@ function showName(n){
 function yUI(){
  const b=$('#ybox');if(!b)return;
  if(!(S.rest&&S.yasin.on&&YASIN.length)){b.innerHTML='';return}
- const c=S.yasin.cur,nm=c!=null&&YASIN[c]?YASIN[c].name:'—';
- b.innerHTML=`<div class="card" style="text-align:center"><div class="muted">🎧 سورة يس</div><div style="font-size:20px;font-weight:800;margin:4px 0">${esc(nm)}</div><button class="sm" data-act="ytoggle">${yOn?'⏸ إيقاف مؤقت':'▶ شغّل'}</button> <button class="sm" data-act="ynext">⏭ شيخ تاني</button></div>`;
+ const c=S.yasin.cur,pk=S.yasin.pick>=0?S.yasin.pick:-1,nm=c!=null&&YASIN[c]?YASIN[c].name:(pk>=0&&YASIN[pk]?YASIN[pk].name:'🎲 عشوائي');
+ b.innerHTML=`<div class="card" style="text-align:center"><div class="muted">🎧 سورة يس</div><div style="font-size:20px;font-weight:800;margin:4px 0">${esc(nm)}</div>${yWait?'<div class="muted" style="margin:2px 0 6px">⏳ جاري التحميل… (بيبدأ لوحده أول ما يجهز)</div>':''}<button class="sm" data-act="ytoggle">${yOn?'⏸ إيقاف مؤقت':'▶ شغّل'}</button> <button class="sm" data-act="ynext">⏭ شيخ تاني</button><div style="margin-top:8px"><select id="ypick" style="max-width:100%"><option value="-1" ${pk<0?'selected':''}>🎲 شيخ عشوائي</option>${YASIN.map((y,i)=>`<option value="${i}" ${pk===i?'selected':''}>${esc(y.name)}</option>`).join('')}</select></div></div>`;
+ const sel=b.querySelector('#ypick');if(sel)sel.onchange=()=>{const v=+sel.value;S.yasin.pick=v;if(v>=0&&S.yasin.cur!==v){S.yasin.cur=v;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart(true)}else save()};
 }
+yu.addEventListener('waiting',()=>{if(S.rest&&S.yasin.on){yWait=true;yUI()}});
+yu.addEventListener('loadstart',()=>{if(S.rest&&S.yasin.on){yWait=true;yUI()}});
+yu.addEventListener('playing',()=>{yWait=false;yUI()});
+yu.addEventListener('canplay',()=>{if(yWait&&!yu.paused){yWait=false;yUI()}});
 function yPlay(){
  const go=()=>{try{if(S.yasin.t>0)yu.currentTime=S.yasin.t}catch(e){}yu.play().then(()=>{yOn=true;yUI()},()=>{yOn=false;yUI()})};
  (yReady||Promise.resolve()).then(()=>{if(yu.readyState>=1)go();else yu.addEventListener('loadedmetadata',go,{once:true})});
 }
-function yStart(){
+function yStart(force,rand){
  if(!S.yasin.on||!YASIN.length)return;
+ if(!force&&S.yasin.auto===false){yUI();return}
  let c=S.yasin.cur;
  if(c==null||!YASIN[c]||YBAD.has(c)){
   const base=YASIN.map((_,i)=>i).filter(i=>!YBAD.has(i)),pool=base.filter(i=>i!==S.yasin.last),arr=pool.length?pool:base;
   if(!arr.length){toast('مفيش ملفات يس شغالة – جرّب "فحص ملفات الصوت" 🔍');return}
-  c=arr[Math.floor(Math.random()*arr.length)];S.yasin.cur=c;S.yasin.t=0;save()}
+  const pk=S.yasin.pick;
+  c=(!rand&&pk>=0&&YASIN[pk]&&!YBAD.has(pk))?pk:arr[Math.floor(Math.random()*arr.length)];S.yasin.cur=c;S.yasin.t=0;save()}
  showName(YASIN[c].name);
  if(yUrl!==YASIN[c].url){const want=YASIN[c].url;yUrl=want;yReady=resolveUrl(want).then(u=>{if(yUrl===want){yu.src=u;yu.load()}})}
  yUI();
@@ -488,7 +495,7 @@ const RESTS=[5,10,15,20];
 function restSheet(){
  sheet(`<h2>☕ بريك المذاكرة</h2><p class="muted">اختار مدة البريك:</p>
  <div class="chips">${RESTS.map(m=>`<button class="chip" data-act="rest" data-v="${m}" style="${S.brkLast===m?'outline:2px solid var(--leaf)':''}">${m} دقيقة</button>`).join('')}</div>
- ${YASIN.length?`<div class="row ${S.yasin.on?'sel':''}" data-act="yopt2">🎧 سورة يس أثناء البريك (شيخ عشوائي، اختياري): ${S.yasin.on?'شغّال':'مقفول'}</div>`:''}
+ ${YASIN.length?`<div class="row ${S.yasin.on?'sel':''}" data-act="yopt2">🎧 سورة يس أثناء البريك (شيخ عشوائي، اختياري): ${S.yasin.on?'شغّال':'مقفول'}</div>${S.yasin.on?`<div class="row ${S.yasin.auto!==false?'sel':''}" data-act="yauto">▶ تشغيل تلقائي أول البريك: ${S.yasin.auto!==false?'تلقائي':'يدوي'}</div>`:''}`:''}
  <button class="big ghost" data-act="close">إلغاء</button>`);
 }
 function startRest(m){
@@ -693,7 +700,7 @@ function render(){
  const d=$('#dur');if(d)d.oninput=()=>{S.dur=+d.value;$('#tm').textContent=fmt(S.dur*60000);save()};
  const g=$('#grace');if(g)g.onchange=()=>{S.grace=+g.value;save()};
  const bind=(id,fn)=>{const e=$('#'+id);if(e)e.onchange=()=>{fn(e.value);save();render()}};
- bind('pcity',v=>S.pray.city=v);bind('pmeth',v=>S.pray.method=v);bind('pauto',v=>S.pray.auto=v);bind('pduha',v=>S.pray.duha=v==='1');bind('ppre',v=>S.pray.pre=+v);bind('pwitr',v=>S.pray.witr=v==='1');bind('pyasin',v=>S.yasin.on=v==='1');bind('pwat',v=>S.pray.witrAt=v);bind('plat',v=>S.pray.lat=parseFloat(v)||0);bind('plng',v=>S.pray.lng=parseFloat(v)||0);
+ bind('pcity',v=>S.pray.city=v);bind('pmeth',v=>S.pray.method=v);bind('pauto',v=>S.pray.auto=v);bind('pduha',v=>S.pray.duha=v==='1');bind('ppre',v=>S.pray.pre=+v);bind('pwitr',v=>S.pray.witr=v==='1');bind('pyasin',v=>S.yasin.on=v==='1');bind('pyauto',v=>S.yasin.auto=v==='1');bind('pwat',v=>S.pray.witrAt=v);bind('plat',v=>S.pray.lat=parseFloat(v)||0);bind('plng',v=>S.pray.lng=parseFloat(v)||0);
  updateNp();yUI();
 }
 
@@ -731,11 +738,12 @@ document.addEventListener('click',e=>{
   case 'plant':startRun();break;
   case 'testNotif':{const k=pNext().k;chime(true);notify('تجربة تنبيه '+PN[k],FADL[k].t);banner('حان وقت صلاة '+PN[k]+' 🕌 (تجربة)',FADL[k].f||FADL[k].t,FADL[k].s,tabkirTip(k))}break;
   case 'yopt':S.yasin.on=!S.yasin.on;save();sndSheet();break;
-  case 'ynext':{if(S.yasin.cur!=null)S.yasin.last=S.yasin.cur;S.yasin.cur=null;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart()}break;
-  case 'ytoggle':if(yOn){S.yasin.t=yu.currentTime||S.yasin.t;yu.pause();yOn=false;save();yUI()}else if(S.yasin.cur==null)yStart();else yPlay();break;
+  case 'ynext':{if(S.yasin.cur!=null)S.yasin.last=S.yasin.cur;S.yasin.cur=null;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart(true,true)}break;
+  case 'ytoggle':if(yOn){S.yasin.t=yu.currentTime||S.yasin.t;yu.pause();yOn=false;save();yUI()}else if(S.yasin.cur==null)yStart(true);else yPlay();break;
   case 'restSheet':restSheet();break;
   case 'rest':startRest(+v);break;
   case 'endRest':endRest(false);break;
+  case 'yauto':S.yasin.auto=S.yasin.auto===false;save();restSheet();break;
   case 'yopt2':S.yasin.on=!S.yasin.on;save();restSheet();break;
   case 'yrest':S.yasin.on=!S.yasin.on;save();if(S.yasin.on){yStart()}else{yStop()}render();break;
   case 'chk':checkFiles();break;
