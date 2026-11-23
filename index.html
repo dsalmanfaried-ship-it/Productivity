@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f3a2d">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -177,6 +177,23 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 @keyframes gbloom{0%{transform:scale(1)}55%{transform:scale(1.18)}100%{transform:scale(1.1)}}
 @keyframes gburst{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){#gate *,#gate{animation:none!important}}
+/* استجابة الشاشات (موبايل / تابلت / كمبيوتر / أفقي) */
+html{-webkit-text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh;overflow-x:hidden}
+.app{min-height:100vh;min-height:100dvh;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+nav{padding-bottom:env(safe-area-inset-bottom)}
+.toast,.banner{top:max(12px,env(safe-area-inset-top))}
+#sheetBody{max-height:86vh;max-height:86dvh;padding-bottom:calc(28px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+.row,.card,.setrow span,.muted{overflow-wrap:anywhere}
+.setrow{flex-wrap:wrap}
+select{max-width:100%}
+.pager button{width:44px;height:44px}
+.sm{min-height:40px}
+.stage{width:clamp(150px,min(78vw,300px,100dvh - 340px),300px)}
+@media (max-width:360px){.time{font-size:44px}.big{font-size:17px}nav button{font-size:11px;padding:9px 2px 11px}.chip{padding:7px 11px;font-size:13px}.hrow .n{width:64px}.shop{gap:8px}.tile b{font-size:21px}.card{padding:13px}}
+@media (min-width:700px){.app{max-width:640px}nav .in{max-width:640px}#sheet{align-items:center}#sheetBody{max-width:560px;width:calc(100% - 32px);border-radius:24px;margin:16px}.shop{grid-template-columns:repeat(3,1fr)}.ach{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:1100px){.app{max-width:720px}nav .in{max-width:720px}}
+@media (max-height:480px) and (orientation:landscape){.time{font-size:38px;margin:0}.stage{margin-top:2px}.seg{margin:6px auto}.big{margin-top:8px;padding:10px}nav button{flex-direction:row;justify-content:center;gap:6px;padding:6px 4px}}
 </style>
 </head>
 <body>
@@ -194,7 +211,7 @@ select{background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);b
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KEY='forest-web-v1';
-const def=()=>({sessions:[],tags:[{id:'t1',name:'دراسة',color:'#56ccf2'},{id:'t2',name:'شغل',color:'#f2994a'},{id:'t3',name:'قراءة',color:'#bb6bd9'},{id:'t4',name:'رياضة',color:'#6fcf97'}],coins:0,unlocked:['oak'],species:'oak',dur:25,mode:'down',tag:'t1',sound:'none',grace:10,active:null,qr:'islam',qpos:{},pray:{city:'cairo',method:'egypt',auto:'pause',lat:30.0444,lng:31.2357},pnotified:'',ppre:'',yasin:{on:false,cur:null,t:0,last:-1,auto:true,pick:-1}});
+const def=()=>({sessions:[],tags:[{id:'t1',name:'دراسة',color:'#56ccf2'},{id:'t2',name:'شغل',color:'#f2994a'},{id:'t3',name:'قراءة',color:'#bb6bd9'},{id:'t4',name:'رياضة',color:'#6fcf97'}],coins:0,unlocked:['oak'],species:'oak',dur:25,mode:'down',tag:'t1',sound:'none',grace:10,active:null,qr:'islam',qpos:{},pray:{city:'cairo',method:'egypt',auto:'pause',lat:30.0444,lng:31.2357},pnotified:'',ppre:'',autoDl:'wifi',yasin:{on:false,cur:null,t:0,last:-1,auto:true,pick:-1}});
 let S;
 try{S=Object.assign(def(),JSON.parse(localStorage.getItem(KEY))||{})}catch(e){S=def()}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}try{window.fbPush&&window.fbPush()}catch(e){}};
@@ -282,7 +299,7 @@ const offReady=oKeys();
 const OFFG={bq:{n:'سورة البقرة (إسلام عثمان + أحمد كاسب)',mb:58,urls:()=>BI.map(x=>x.url)},ys:{n:'سورة يس (١١ شيخ)',mb:100,urls:()=>YASIN.map(x=>x.url)}};
 function offSheet(){
  const row=k=>{const g=OFFG[k],u=g.urls(),n=u.filter(x=>OFFK.has(x)).length;return `<div class="row" style="cursor:default"><span style="flex:1">${g.n}<br><small class="muted">حوالي ${g.mb} ميجا • ${n===u.length?'✔ منزّلة':n+' من '+u.length}</small></span>${n===u.length?'':`<button class="sm" data-act="offDl" data-v="${k}">تنزيل</button>`}</div>`};
- sheet(`<h2>📥 تنزيل للاستخدام بدون إنترنت</h2><p class="muted">التلاوات بتتخزن على جهازك وبتشتغل من غير نت. (المواقيت والمؤقت والغابة والإحصائيات شغالين بدون نت أصلًا.)</p>${row('bq')}${row('ys')}<div id="offp" class="muted" style="margin:8px 0;min-height:20px"></div><button class="big" data-act="offDl" data-v="all">تنزيل الكل (حوالي ١٥٨ ميجا)</button><button class="big ghost" data-act="offClear">حذف التنزيلات</button><button class="big ghost" data-act="close">إغلاق</button>`);
+ sheet(`<h2>📥 تنزيل للاستخدام بدون إنترنت</h2><p class="muted">التلاوات بتتخزن على جهازك وبتشتغل من غير نت. (المواقيت والمؤقت والغابة والإحصائيات شغالين بدون نت أصلًا.)</p>${row('bq')}${row('ys')}<div class="row" data-act="autoDl">⚙️ تنزيل تلقائي: ${AMODE[S.autoDl||'wifi']}</div><p class="muted" style="margin:0 0 6px">بينزّل الملفات الناقصة لوحده في الخلفية ويعيد المحاولة لو النت قطع. "على الواي فاي بس" بيمنع التنزيل على باقة الموبايل (لو المتصفح بيبلّغ بنوع الشبكة).</p><div id="offp" class="muted" style="margin:8px 0;min-height:20px"></div><button class="big" data-act="offDl" data-v="all">تنزيل الكل (حوالي ١٥٨ ميجا)</button><button class="big ghost" data-act="offClear">حذف التنزيلات</button><button class="big ghost" data-act="close">إغلاق</button>`);
 }
 
 async function checkFiles(){try{YBAD.clear();localStorage.removeItem('forest-ybad')}catch(e){}
@@ -296,25 +313,80 @@ async function checkFiles(){try{YBAD.clear();localStorage.removeItem('forest-yba
  ${miss.length?`<p class="muted">الملفات الناقصة (ارفعها جنب index.html في المستودع):</p>${miss.map(f=>`<div class="row" style="cursor:default"><span style="flex:1">${esc(f.n)}<br><small class="muted" style="direction:ltr;display:block;text-align:left">${esc(altUrl(f.u))}</small></span></div>`).join('')}`:(odd.length?'':'<p class="muted">كل الملفات موجودة وبتشتغل.</p>')}
  <button class="big ghost" data-act="close">إغلاق</button>`);
 }
-async function offDownload(which){
- if(offBusy)return;
- const keys=which==='all'?['bq','ys']:[which];let urls=[];keys.forEach(k=>urls.push(...OFFG[k].urls()));urls=urls.filter(u=>!OFFK.has(u));
- if(!urls.length){toast('كل حاجة منزّلة ✔');return}
- if(!(await oOpen())){toast('المتصفح مش بيسمح بالتخزين هنا');return}
- try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
- offBusy=true;let done=0;
- for(const u of urls){
-  const p=$('#offp');if(p)p.textContent='⏳ بنزّل '+(done+1)+' من '+urls.length+'…';
-  try{let r=await fetch(u);if(!r.ok&&u.startsWith('audio/'))r=await fetch(altUrl(u));if(!r.ok)throw new Error(r.status);const b=await r.blob();await oPut(u,b);done++}
-  catch(e){toast('فشل التنزيل – اتأكد من النت وجرّب تاني');offBusy=false;if($('#offp'))offSheet();return}
+let offRound=0,offTimer=null;
+const mbf=n=>(n/1048576).toFixed(1);
+const AMODE={off:'مقفول',wifi:'على الواي فاي بس',always:'دايمًا'};
+/* تنزيل ملف واحد: مهلة لو الشبكة وقفت، إعادة محاولة، ومسار بديل، وتأكد إن الحجم كامل */
+async function fetchBlob(u,onP){
+ let last;
+ for(let a=0;a<3;a++){
+  for(const x of (u.startsWith('audio/')?[u,altUrl(u)]:[u])){
+   const ac=new AbortController();let tm;const kick=()=>{clearTimeout(tm);tm=setTimeout(()=>ac.abort(),30000)};
+   try{
+    kick();const r=await fetch(x,{signal:ac.signal});if(!r.ok)throw new Error('HTTP '+r.status);
+    const total=r.headers.get('content-encoding')?0:(+r.headers.get('content-length')||0);
+    if(r.body&&r.body.getReader){
+     const rd=r.body.getReader(),parts=[];let got=0;
+     for(;;){const o=await rd.read();if(o.done)break;parts.push(o.value);got+=o.value.length;kick();onP&&onP(got,total)}
+     clearTimeout(tm);if(total&&got<total)throw new Error('ملف ناقص');
+     return new Blob(parts,{type:'audio/mpeg'});
+    }
+    const b=await r.blob();clearTimeout(tm);if(total&&b.size<total)throw new Error('ملف ناقص');return b;
+   }catch(e){clearTimeout(tm);last=e;if(navigator.onLine===false)throw e}
+  }
+  await new Promise(r=>setTimeout(r,1500*(a+1)));
  }
- offBusy=false;toast('اتنزّلت ✔ دلوقتي بتشتغل بدون نت');if($('#offp'))offSheet();
+ throw last;
+}
+function autoOk(){
+ const m=S.autoDl||'wifi';if(m==='off'||navigator.onLine===false)return false;
+ if(m==='always')return true;
+ const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+ if(c){if(c.saveData||c.type==='cellular')return false;if(!c.type&&/^(slow-2g|2g|3g)$/.test(c.effectiveType||''))return false}
+ return true;
+}
+function autoDlMaybe(){
+ if(offBusy||!autoOk())return;
+ if(['bq','ys'].some(k=>OFFG[k].urls().some(u=>!OFFK.has(u))))offDownload('all',true);
+}
+async function offDownload(which,auto){
+ if(offBusy){if(!auto)toast('التنزيل شغّال دلوقتي ⏳');return}
+ if(navigator.onLine===false){if(!auto)toast('مفيش نت دلوقتي – هننزّل أول ما يرجع');return}
+ const keys=which==='all'?(S.yasin.on?['ys','bq']:['bq','ys']):[which];
+ let urls=[];keys.forEach(k=>urls.push(...OFFG[k].urls()));urls=[...new Set(urls)].filter(u=>!OFFK.has(u));
+ if(!urls.length){if(!auto)toast('كل حاجة منزّلة ✔');return}
+ if(!(await oOpen())){if(!auto)toast('المتصفح مش بيسمح بالتخزين هنا');return}
+ try{const e=await navigator.storage.estimate();const need=keys.reduce((a,k)=>a+(OFFG[k].urls().some(x=>!OFFK.has(x))?OFFG[k].mb:0),0)*1048576;
+  if(e&&e.quota&&e.quota-(e.usage||0)<need){if(!auto)toast('مساحة التخزين على الجهاز مش كفاية للتنزيل 💾');return}}catch(e){}
+ try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+ offBusy=true;let done=0,fail=0;
+ const setP=t=>{const p=$('#offp');if(p)p.textContent=t};
+ for(let i=0;i<urls.length;i++){
+  const pre='⏳ بنزّل '+(i+1)+' من '+urls.length;setP(pre+'…');
+  try{const b=await fetchBlob(urls[i],(g,t)=>setP(pre+(t?' • '+Math.round(g/t*100)+'%':' • '+mbf(g)+' ميجا')));await oPut(urls[i],b);done++}
+  catch(e){fail++;if(navigator.onLine===false){fail+=urls.length-i-1;break}}
+ }
+ offBusy=false;
+ if(!fail){offRound=0;toast(auto?'اتنزّلت التلاوات تلقائي ✔ بتشتغل بدون نت':'اتنزّلت ✔ دلوقتي بتشتغل بدون نت')}
+ else{
+  const retry=autoOk()&&offRound<4;
+  if(!auto||done)toast((done?'نزلت '+done+' وفاضل '+fail+' – ':'فشل التنزيل – ')+(retry?'هنعيد المحاولة لوحدنا 🔄':'اتأكد من النت وجرّب تاني'));
+  if(retry){clearTimeout(offTimer);offTimer=setTimeout(autoDlMaybe,30000*Math.pow(2,offRound++))}
+ }
+ if($('#offp'))offSheet();
 }
 
 /* ---------- Quran audio (user-supplied files) ---------- */
 const RN={islam:'إسلام عثمان',kasab:'أحمد كاسب'};
 const RL={islam:'https://way2quran.com/ar/reciters/islam-othman?recitationSlug=hafs-an-asim',kasab:'https://midad.com/recitation/271360'};
-const au=new Audio();au.preload='auto';
+function stallGuard(el,isOn,retry,skip){
+ let t=null,n=0;const clr=()=>{clearTimeout(t);t=null};
+ const arm=()=>{if(t||!isOn())return;t=setTimeout(()=>{t=null;if(!isOn()||el.readyState>=3)return;if(n++<1)retry();else{n=0;skip()}},20000)};
+ ['waiting','stalled','loadstart'].forEach(e=>el.addEventListener(e,arm));
+ ['playing','canplay'].forEach(e=>el.addEventListener(e,()=>{clr();n=0}));
+ el.addEventListener('pause',clr);
+}
+const au=new Audio();au.preload='auto';let qTok=0,qFails=0;
 const BI=[{id:'b-islam-1',reciter:'islam',name:'سورة البقرة – الجزء 1',url:'audio/islam-0.mp3',builtin:true},{id:'b-islam-2',reciter:'islam',name:'سورة البقرة – الجزء 2',url:'audio/islam-1.mp3',builtin:true},{id:'b-islam-3',reciter:'islam',name:'سورة البقرة – الجزء 3',url:'audio/islam-2.mp3',builtin:true},{id:'b-kasab-1',reciter:'kasab',name:'سورة البقرة – الجزء 1',url:'audio/kasab-0.mp3',builtin:true},{id:'b-kasab-2',reciter:'kasab',name:'سورة البقرة – الجزء 2',url:'audio/kasab-1.mp3',builtin:true},{id:'b-kasab-3',reciter:'kasab',name:'سورة البقرة – الجزء 3',url:'audio/kasab-2.mp3',builtin:true}];
 const Q={files:[...BI],db:null};let qi=0,qList=[],qOn=false;
 function qSort(){Q.files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}))}
@@ -323,7 +395,7 @@ function qLoad(){return qOpen().then(ok=>new Promise(res=>{if(!ok)return res();t
 function qAdd(r,list){[...list].forEach((f,i)=>{const rec={id:r+'-'+Date.now()+'-'+i,reciter:r,name:f.name,blob:f};Q.files.push({...rec,url:URL.createObjectURL(f)});try{Q.db&&Q.db.transaction('f','readwrite').objectStore('f').put(rec)}catch(e){}});qSort();return Promise.resolve()}
 function qDel(id){const f=Q.files.find(x=>x.id===id);if(!f||f.builtin)return;if(f)URL.revokeObjectURL(f.url);Q.files=Q.files.filter(x=>x.id!==id);try{Q.db&&Q.db.transaction('f','readwrite').objectStore('f').delete(id)}catch(e){}}
 function qFiles(){return S.qr==='both'?[...Q.files.filter(f=>f.reciter==='islam'),...Q.files.filter(f=>f.reciter==='kasab')]:Q.files.filter(f=>f.reciter===S.qr)}
-function qPlay(t){resolveUrl(qList[qi].url).then(src=>{if(!qOn)return;au.src=src;au.addEventListener('loadedmetadata',()=>{if(t){try{au.currentTime=t}catch(e){}}au.play().catch(()=>{})},{once:true});au.load()})}
+function qPlay(t){const tok=++qTok;resolveUrl(qList[qi].url).then(src=>{if(!qOn||tok!==qTok)return;au.src=src;au.addEventListener('loadedmetadata',()=>{if(tok!==qTok)return;if(t){try{au.currentTime=t}catch(e){}}au.play().catch(()=>{})},{once:true});au.load()})}
 function qStart(){
  qList=qFiles();
  if(!qList.length){toast('ارفع ملفات التلاوة الأول من إعدادات الصوت 📖');return false}
@@ -333,8 +405,12 @@ au.onended=()=>{if(!qOn)return;qi=(qi+1)%qList.length;qPlay(0)};
 au.onerror=()=>{
  if(!qOn)return;const u=qList[qi]&&qList[qi].url;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!au.src.startsWith('blob:')){ALT[u]=1;au.src=altUrl(u);au.addEventListener('loadedmetadata',()=>au.play().catch(()=>{}),{once:true});au.load();return}
+ qFails++;if(qList.length>1&&qFails<qList.length){toast('تعذّر تشغيل الجزء – بنكمّل اللي بعده ⏭');qi=(qi+1)%qList.length;qPlay(0);return}
+ if(navigator.onLine===false&&u&&!OFFK.has(u)){toast('مفيش نت والتلاوة دي مش منزّلة 📥');return}
  toast('الملف '+(u||'')+' مش موجود في الموقع – جرّب "فحص ملفات الصوت" من الإعدادات 🔍');
 };
+au.addEventListener('playing',()=>{qFails=0});
+stallGuard(au,()=>qOn,()=>{toast('النت بطيء… بنعيد المحاولة 🔄');qPlay(au.currentTime||0)},()=>{toast('التحميل واقف – بنكمّل اللي بعده ⏭');qi=(qi+1)%qList.length;qPlay(0)});
 function qSave(){if(!qOn)return;S.qpos=S.qpos||{};S.qpos[S.qr]={idx:qi,t:au.currentTime||0}}
 function qStop(){if(qOn){qSave();qOn=false;save()}au.pause()}
 const qReady=qLoad();
@@ -506,7 +582,7 @@ yu.onerror=()=>{
  if(!(S.rest&&S.yasin.on))return;const u=yUrl;
  if(u&&u.startsWith('audio/')&&!ALT[u]&&!yu.src.startsWith('blob:')){ALT[u]=1;yu.src=altUrl(u);yu.load();yReady=Promise.resolve();yPlay();return}
  const c=S.yasin.cur;
- if(c!=null&&YASIN[c]){YBAD.add(c);ySaveBad();yDiag(c,yu.src,yu.error?yu.error.code:0);S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart(true,true)}
+ if(c!=null&&YASIN[c]){if(navigator.onLine!==false){YBAD.add(c);ySaveBad();yDiag(c,yu.src,yu.error?yu.error.code:0)}else toast('مفيش نت والملف ده مش منزّل – بنختار شيخ منزّل 📥');S.yasin.cur=null;S.yasin.t=0;yOn=false;yUrl='';save();yStart(true,true)}
 };
 function showName(n){
  const d=document.createElement('div');d.className='yname';
@@ -517,12 +593,13 @@ function yUI(){
  const b=$('#ybox');if(!b)return;
  if(!(S.rest&&S.yasin.on&&YASIN.length)){b.innerHTML='';return}
  const c=S.yasin.cur,pk=S.yasin.pick>=0?S.yasin.pick:-1,nm=c!=null&&YASIN[c]?YASIN[c].name:(pk>=0&&YASIN[pk]?YASIN[pk].name:'🎲 عشوائي');
- b.innerHTML=`<div class="card" style="text-align:center"><div class="muted">🎧 سورة يس</div><div style="font-size:20px;font-weight:800;margin:4px 0">${esc(nm)}</div>${yWait?'<div class="muted" style="margin:2px 0 6px">⏳ جاري التحميل… (بيبدأ لوحده أول ما يجهز)</div>':''}<button class="sm" data-act="ytoggle">${yOn?'⏸ إيقاف مؤقت':'▶ شغّل'}</button> <button class="sm" data-act="ynext">⏭ شيخ تاني</button><div style="margin-top:8px"><select id="ypick" style="max-width:100%"><option value="-1" ${pk<0?'selected':''}>🎲 شيخ عشوائي</option>${YASIN.map((y,i)=>`<option value="${i}" ${pk===i?'selected':''}>${esc(y.name)}</option>`).join('')}</select></div></div>`;
+ b.innerHTML=`<div class="card" style="text-align:center"><div class="muted">🎧 سورة يس</div><div style="font-size:20px;font-weight:800;margin:4px 0">${esc(nm)}</div>${c!=null&&S.yasin.t>5&&!yOn?`<div class="muted" style="margin:2px 0 6px">⏯ هتكمل من ${Math.floor(S.yasin.t/60)}:${String(Math.floor(S.yasin.t%60)).padStart(2,'0')}</div>`:''}${yWait?'<div class="muted" style="margin:2px 0 6px">⏳ جاري التحميل… (بيبدأ لوحده أول ما يجهز)</div>':''}<button class="sm" data-act="ytoggle">${yOn?'⏸ إيقاف مؤقت':'▶ شغّل'}</button> <button class="sm" data-act="ynext">⏭ شيخ تاني</button>${c!=null?' <button class="sm" data-act="yrestart">🔄 من الأول</button>':''}<div style="margin-top:8px"><select id="ypick" style="max-width:100%"><option value="-1" ${pk<0?'selected':''}>🎲 شيخ عشوائي</option>${YASIN.map((y,i)=>`<option value="${i}" ${pk===i?'selected':''}>${esc(y.name)}</option>`).join('')}</select></div></div>`;
  const sel=b.querySelector('#ypick');if(sel)sel.onchange=()=>{const v=+sel.value;S.yasin.pick=v;if(v>=0&&S.yasin.cur!==v){S.yasin.cur=v;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart(true)}else save()};
 }
 yu.addEventListener('waiting',()=>{if(S.rest&&S.yasin.on){yWait=true;yUI()}});
 yu.addEventListener('loadstart',()=>{if(S.rest&&S.yasin.on){yWait=true;yUI()}});
 yu.addEventListener('playing',()=>{yWait=false;yUI()});
+stallGuard(yu,()=>S.rest&&S.yasin.on&&S.yasin.cur!=null,()=>{toast('النت بطيء… بنعيد المحاولة 🔄');S.yasin.t=yu.currentTime||S.yasin.t||0;yu.load();yPlay()},()=>{toast('التحميل واقف – بنجرّب شيخ تاني ⏭');S.yasin.last=S.yasin.cur;S.yasin.cur=null;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart(true,true)});
 yu.addEventListener('canplay',()=>{if(yWait&&!yu.paused){yWait=false;yUI()}});
 function yPlay(){
  const go=()=>{try{if(S.yasin.t>0)yu.currentTime=S.yasin.t}catch(e){}yu.play().then(()=>{yOn=true;yUI()},()=>{yOn=false;yUI()})};
@@ -533,7 +610,9 @@ function yStart(force,rand){
  if(!force&&S.yasin.auto===false){yUI();return}
  let c=S.yasin.cur;
  if(c==null||!YASIN[c]||YBAD.has(c)){
-  const base=YASIN.map((_,i)=>i).filter(i=>!YBAD.has(i)),pool=base.filter(i=>i!==S.yasin.last),arr=pool.length?pool:base;
+  let base=YASIN.map((_,i)=>i).filter(i=>!YBAD.has(i));
+  if(navigator.onLine===false){const d=base.filter(i=>OFFK.has(YASIN[i].url));if(!d.length){toast('مفيش نت ومفيش تلاوات منزّلة – نزّلها من الإعدادات 📥');return}base=d}
+  const pool=base.filter(i=>i!==S.yasin.last),arr=pool.length?pool:base;
   if(!arr.length){toast('مفيش ملفات يس شغالة – جرّب "فحص ملفات الصوت" 🔍');return}
   const pk=S.yasin.pick;
   c=(!rand&&pk>=0&&YASIN[pk]&&!YBAD.has(pk))?pk:arr[Math.floor(Math.random()*arr.length)];S.yasin.cur=c;S.yasin.t=0;save()}
@@ -820,6 +899,7 @@ document.addEventListener('click',e=>{
   case 'plant':startRun();break;
   case 'testNotif':{const k=pNext().k;chime(true);notify('تجربة تنبيه '+PN[k],FADL[k].t);banner('حان وقت صلاة '+PN[k]+' 🕌 (تجربة)',FADL[k].f||FADL[k].t,FADL[k].s,tabkirTip(k))}break;
   case 'yopt':S.yasin.on=!S.yasin.on;save();sndSheet();break;
+  case 'yrestart':{S.yasin.t=0;try{yu.currentTime=0}catch(e){}save();if(S.yasin.cur==null)yStart(true);else yPlay();yUI();toast('بدأنا السورة من الأول 🔄')}break;
   case 'ynext':{if(S.yasin.cur!=null)S.yasin.last=S.yasin.cur;S.yasin.cur=null;S.yasin.t=0;yu.pause();yOn=false;yUrl='';save();yStart(true,true)}break;
   case 'ytoggle':if(yOn){S.yasin.t=yu.currentTime||S.yasin.t;yu.pause();yOn=false;save();yUI()}else if(S.yasin.cur==null)yStart(true);else yPlay();break;
   case 'restSheet':restSheet();break;
@@ -832,6 +912,7 @@ document.addEventListener('click',e=>{
   case 'chk':checkFiles();break;
   case 'offSheet':offSheet();break;
   case 'offDl':offDownload(v);break;
+  case 'autoDl':{const o=['off','wifi','always'];S.autoDl=o[(o.indexOf(S.autoDl||'wifi')+1)%3];save();offRound=0;offSheet();autoDlMaybe()}break;
   case 'offClear':oOpen().then(oClear).then(()=>{toast('اتمسحت التنزيلات');offSheet()});break;
   case 'auto':S.autoDur=!S.autoDur;save();render();break;
   case 'pause':pauseRun();closeSheet();break;
@@ -1069,6 +1150,10 @@ gateRender();
 
 setInterval(prayerWatch,1000);
 render();
+/* تنزيل تلقائي للتلاوات + إعادة المحاولة لما النت يرجع */
+offReady.then(()=>setTimeout(autoDlMaybe,6000));
+window.addEventListener('online',()=>{YBAD.clear();offRound=0;setTimeout(autoDlMaybe,2000)});
+try{const nc=navigator.connection;nc&&nc.addEventListener&&nc.addEventListener('change',()=>setTimeout(autoDlMaybe,2000))}catch(e){}
 </script>
 </body>
 </html>

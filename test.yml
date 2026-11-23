@@ -1,0 +1,27 @@
+name: اختبار غابتي
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: تثبيت Playwright والمتصفح
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: تشغيل الاختبارات
+        run: node tests/check.cjs
+      - name: رفع لقطات الشاشة
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tests/shots
+          if-no-files-found: ignore
