@@ -7,6 +7,11 @@ service cloud.firestore {
       match /fcmTokens/{tokenId} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+
+      // إعدادات التذكيرات (users/{uid}/settings/reminders)
+      match /settings/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }

@@ -102,6 +102,61 @@ async function sendPush(userRef, title, body) {
   return r.successCount > 0;
 }
 
+// ---- ردود البوت: أي حد يكلّم البوت يستلم رقمه (Chat ID)، و/start CODE بيربط حسابه تلقائي، و/stop بيوقف التذكيرات ----
+// <handleUpdates>
+const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const LINK_RE = /^[A-Za-z0-9_-]{12,64}$/;
+async function handleUpdates(updates, entries, send, del) {
+  const replied = new Set();
+  for (const u of updates) {
+    const m = u && u.message;
+    if (!m || !m.chat || m.chat.type !== "private" || typeof m.text !== "string") continue;
+    const id = String(m.chat.id);
+    const [cmdRaw, argRaw] = m.text.trim().split(/\s+/, 2);
+    const cmd = (cmdRaw || "").toLowerCase().replace(/@\w+$/, "");
+    const arg = argRaw || "";
+    const mine = entries.filter(e => String(e.cfg.chatId || "") === id);
+    let text;
+
+    if (cmd === "/stop") {
+      for (const e of mine) { await e.ref.set({ chatId: del() }, { merge: true }); delete e.cfg.chatId; }
+      text = mine.length
+        ? "تمام ✅ وقّفت التذكيرات على التليجرام. تقدر ترجّعها في أي وقت من غابتي ← حسابي ← إعدادات الإشعارات."
+        : "مفيش تذكيرات شغالة على الحساب ده.";
+    } else if (cmd === "/start" && LINK_RE.test(arg) && entries.some(e => e.cfg.linkCode === arg)) {
+      const e = entries.find(x => x.cfg.linkCode === arg);
+      await e.ref.set({ chatId: id, linkCode: del() }, { merge: true });
+      e.cfg.chatId = id; delete e.cfg.linkCode;
+      text = "اتربط حسابك في غابتي ✅\nهتوصلك التذكيرات هنا في المواعيد اللي اخترتها.\n\nرقمك (Chat ID): <code>" + esc(id) + "</code>\nلإيقاف التذكيرات ابعت /stop";
+    } else if (mine.length) {
+      text = "حسابك مربوط بغابتي ✅ هتوصلك التذكيرات هنا.\nرقمك (Chat ID): <code>" + esc(id) + "</code>\nلإيقاف التذكيرات ابعت /stop";
+    } else {
+      text = "أهلاً بيك في غابتي 🌳\nرقمك (Chat ID): <code>" + esc(id) + "</code>\n\nانسخ الرقم (دوس عليه) والصقه في غابتي ← حسابي ← إعدادات الإشعارات ← رقم تيليجرام، واضغط حفظ. بعدها التذكيرات هتوصلك هنا في المواعيد اللي تختارها.";
+    }
+    if (replied.has(id)) continue;
+    replied.add(id);
+    await send({ chat_id: id, text, parse_mode: "HTML" });
+  }
+}
+// </handleUpdates>
+
+async function pollTelegram(entries) {
+  if (!BOT) return;
+  const r = await tg("getUpdates", { timeout: 0, limit: 100, allowed_updates: ["message"] });
+  if (!r.ok) {
+    if (r.error_code === 409) console.warn("Telegram: البوت عليه webhook شغال. امسحه بـ deleteWebhook عشان البوت يرد.");
+    return;
+  }
+  const updates = r.result || [];
+  if (!updates.length) return;
+  try {
+    await handleUpdates(updates, entries, b => tg("sendMessage", b), () => admin.firestore.FieldValue.delete());
+  } catch (e) { console.warn("telegram updates error:", e.message); }
+  // تأكيد استلام التحديثات عشان ما تتكررش
+  await tg("getUpdates", { offset: Math.max(...updates.map(x => x.update_id)) + 1, limit: 1, timeout: 0 });
+  console.log(`telegram: handled ${updates.length} update(s)`);
+}
+
 // ---- تحميل إعدادات كل المستخدمين ----
 const entries = [];
 for (const userRef of await db.collection("users").listDocuments()) {
@@ -109,6 +164,8 @@ for (const userRef of await db.collection("users").listDocuments()) {
   const snap = await ref.get();
   if (snap.exists) entries.push({ userRef, ref, cfg: snap.data() });
 }
+
+await pollTelegram(entries);
 
 // ---- إرسال التذكيرات ----
 let sent = 0;

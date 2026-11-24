@@ -14,24 +14,16 @@ const firebaseConfig = {
   appId: "1:872681239030:web:ed56a9cfd6994b317a57d7"
 };
 const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWxqDj70SnDwRxk7wINKrODmHl5PE";
+// اسم بوت تيليجرام بتاعك من غير @ (مثال: GhabatyBot). لو سيبته فاضي، الزرار مش هيظهر.
+const BOT_USERNAME_RAW = "FORESTsolybot";
+const BOT_USERNAME = /^[A-Za-z0-9_]{4,32}$/.test(BOT_USERNAME_RAW) ? BOT_USERNAME_RAW : "";
+// رابط الـ Worker على Cloudflare: بيربط تيليجرام فورًا (لو فاضي بيشتغل الربط القديم عن طريق Firestore).
+const WORKER_URL = "https://ghabaty-bot.dsalmanfaried.workers.dev";
 const LS_KEY = "ghabaty-reminders";
-const WORKER = "https://ghabaty-bot.dsalmanfaried.workers.dev";
-const tgTok = () => {
-  let t = localStorage.getItem("ghabaty-tg-token");
-  if (!t) { t = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); localStorage.setItem("ghabaty-tg-token", t); }
-  return t;
-};
-async function botUser() {
-  const c = localStorage.getItem("ghabaty-bot-user");
-  if (c) return c;
-  const j = await (await fetch(WORKER + "/info")).json();
-  if (j.username) localStorage.setItem("ghabaty-bot-user", j.username);
-  return j.username || null;
-}
-async function tgLinked() {
-  const j = await (await fetch(`${WORKER}/check?token=${tgTok()}`)).json();
-  return j.chat_id || null;
-}
+let pollFn = null; // بنفحص الربط تاني أول ما المستخدم يرجع للتطبيق من تيليجرام
+window.addEventListener("focus", () => { pollFn && pollFn(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && pollFn) pollFn(); });
+const newLinkCode = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -243,8 +235,22 @@ async function openModal() {
     winEnd: cfg.winEnd || "22:00",
     times: new Set(Array.isArray(cfg.times) ? cfg.times : ["08:00", "20:00"]),
     randomMsg: cfg.randomMsg !== false,
-    chatId: cfg.chatId || ""
+    chatId: cfg.chatId ? String(cfg.chatId) : ""
   };
+  let initialChat = st.chatId;
+  // كود ربط سري: البوت بيستخدمه لما المستخدم يدوس Start عشان يربط الحساب تلقائي
+  let linkCode = WORKER_URL ? newLinkCode() : (cfg.linkCode || "");
+  const fresh = !WORKER_URL && BOT_USERNAME && !linkCode;
+  if (fresh) linkCode = newLinkCode();
+  const botHref = () => "https://t.me/" + BOT_USERNAME + (linkCode ? "?start=" + linkCode : "");
+  if (fresh) {
+    setDoc(settingsRef(), { linkCode }, { merge: true }).catch(e => {
+      console.warn("[Notifications] link code save failed", e);
+      linkCode = "";
+      const a = document.getElementById("ntfBot");
+      if (a) a.href = botHref();
+    });
+  }
 
   const wrap = document.createElement("div");
   wrap.id = "ntfModal";
@@ -289,12 +295,15 @@ async function openModal() {
     <input id="ntfMsg" style="${field}" placeholder="اكتب نص التذكير">
 
     <hr style="width:100%;border:0;border-top:1px solid #3d7a56">
+    <div style="font-weight:700">✈️ تذكيرات تيليجرام</div>
+    ${BOT_USERNAME ? `
+    <a id="ntfBot" href="${botHref()}" target="_blank" rel="noopener" style="${btn};background:#2f6b4a;color:#fff;text-align:center;text-decoration:none;display:block">🤖 افتح البوت واضغط Start</a>
+    <small style="opacity:.85">دوس Start في البوت وارجع هنا، حسابك هيتربط لوحده. وتقدر كمان تنسخ الرقم من البوت وتلصقه تحت.</small>
+    <button id="ntfCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>`
+    : `<small style="opacity:.85">ابعت أي رسالة للبوت وهيرد عليك برقمك (Chat ID)، والصقه تحت.</small>`}
     <label>رقم تيليجرام (Chat ID)
       <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
     </label>
-    <button id="tgOpen" style="${btn};background:#2f6b4a;color:#fff">🤖 افتح البوت واضغط Start</button>
-    <button id="tgCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>
-    <small style="opacity:.85">بعد Start البوت بيربط حسابك تلقائي وبيبعتلك رقمك. أو اكتب الرقم بنفسك فوق، وبعدها دوس حفظ.</small>
 
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
@@ -350,29 +359,52 @@ async function openModal() {
   };
   $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
-
-  let botName = localStorage.getItem("ghabaty-bot-user");
-  botUser().then(u => { if (u) botName = u; }).catch(() => {});
-  const gotLinked = id => { st.chatId = id; $("#ntfChat").value = id; notifyUser("اتربط بتيليجرام ✔ دوس حفظ."); };
-  let poll;
-  $("#tgOpen").onclick = async () => {
-    try {
-      if (!botName) botName = await botUser();
-      if (!botName) { notifyUser("مقدرتش أجيب يوزر البوت، جرّب كمان شوية."); return; }
-      window.open(`https://t.me/${botName}?start=${tgTok()}`, "_blank");
-      let tries = 0;
-      clearInterval(poll);
-      poll = setInterval(async () => {
-        if (++tries > 60 || !document.getElementById("ntfModal")) return clearInterval(poll);
-        try { const id = await tgLinked(); if (id) { clearInterval(poll); gotLinked(id); } } catch (e) {}
-      }, 3000);
-    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+  /* ربط فوري عن طريق الـ Worker: بنسأله كل 3 ثواني (لحد 3 دقايق) هل الكود اتربط */
+  let pollT = null, polls = 0, busy = false;
+  const workerCheck = async () => {
+    const r = await fetch(WORKER_URL + "/check?token=" + encodeURIComponent(linkCode));
+    const j = await r.json();
+    return j && j.chat_id ? String(j.chat_id) : "";
   };
-  $("#tgCheck").onclick = async () => {
+  const onLinked = async id => {
+    st.chatId = initialChat = id;
+    $("#ntfChat").value = id;
+    notifyUser("اتربط حسابك بتيليجرام ✔");
+    await $("#ntfSave").onclick({ currentTarget: $("#ntfSave") }); // يحفظ الإعدادات على طول
+  };
+  const tryLink = async () => {
+    if (!document.getElementById("ntfModal") || busy) return false;
+    busy = true;
+    try { const id = await workerCheck(); if (id) { await onLinked(id); return true; } }
+    catch (e) { /* الشبكة وحشة: هنحاول تاني */ }
+    finally { busy = false; }
+    return false;
+  };
+  const stopPoll = () => { clearInterval(pollT); pollT = null; if (pollFn === tryLink) pollFn = null; };
+  const startPoll = () => {
+    stopPoll(); polls = 0; pollFn = tryLink;
+    pollT = setInterval(async () => {
+      if (!document.getElementById("ntfModal") || ++polls > 60 || await tryLink()) stopPoll();
+    }, 3000);
+  };
+  const botLink = $("#ntfBot");
+  if (botLink && WORKER_URL) botLink.addEventListener("click", startPoll);
+
+  const chk = $("#ntfCheck");
+  if (chk) chk.onclick = async () => {
     try {
-      const id = await tgLinked();
-      if (id) gotLinked(id); else notifyUser("لسه ما اتربطش. افتح البوت واضغط Start.");
-    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+      if (WORKER_URL) {
+        const id = await workerCheck().catch(() => "");
+        if (id) { await onLinked(id); return; }
+      }
+      const snap = await getDoc(settingsRef());
+      const c = snap.exists() ? snap.data().chatId : "";
+      if (c) {
+        st.chatId = initialChat = String(c);
+        $("#ntfChat").value = st.chatId;
+        notifyUser("اتربط حسابك بتيليجرام ✔");
+      } else notifyUser("لسه ما اتربطش. دوس Start في البوت وجرّب بعد كام دقيقة.");
+    } catch (e) { notifyUser(explainError(e)); }
   };
 
   $("#ntfSave").onclick = async ev => {
@@ -390,9 +422,11 @@ async function openModal() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
       const data = {
         mode: st.mode, count: st.count, winStart: st.winStart, winEnd: st.winEnd,
-        times, randomMsg: st.randomMsg, message, chatId: st.chatId, tz,
+        times, randomMsg: st.randomMsg, message, tz,
         enabled: true, updatedAt: serverTimestamp()
       };
+      // ما نمسحش رقم اتربط تلقائي من البوت وإحنا فاتحين النافذة، إلا لو المستخدم مسحه بإيده
+      if (st.chatId || initialChat) data.chatId = st.chatId;
       await setDoc(settingsRef(), data, { merge: true });
       writeLocalCfg({ ...readLocalCfg(), ...data, updatedAt: undefined, uid: currentUser.uid });
       notifyUser("اتحفظت الإعدادات ✔");
