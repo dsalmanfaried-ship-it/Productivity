@@ -15,6 +15,23 @@ const firebaseConfig = {
 };
 const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWxqDj70SnDwRxk7wINKrODmHl5PE";
 const LS_KEY = "ghabaty-reminders";
+const WORKER = "https://ghabaty-bot.dsalmanfaried.workers.dev";
+const tgTok = () => {
+  let t = localStorage.getItem("ghabaty-tg-token");
+  if (!t) { t = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); localStorage.setItem("ghabaty-tg-token", t); }
+  return t;
+};
+async function botUser() {
+  const c = localStorage.getItem("ghabaty-bot-user");
+  if (c) return c;
+  const j = await (await fetch(WORKER + "/info")).json();
+  if (j.username) localStorage.setItem("ghabaty-bot-user", j.username);
+  return j.username || null;
+}
+async function tgLinked() {
+  const j = await (await fetch(`${WORKER}/check?token=${tgTok()}`)).json();
+  return j.chat_id || null;
+}
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -275,7 +292,9 @@ async function openModal() {
     <label>رقم تيليجرام (Chat ID)
       <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
     </label>
-    <small style="opacity:.85">البوت بتاعك هيبعتلك على الرقم ده. افتح البوت مرة واحدة واضغط Start، وتعرف رقمك من @userinfobot.</small>
+    <button id="tgOpen" style="${btn};background:#2f6b4a;color:#fff">🤖 افتح البوت واضغط Start</button>
+    <button id="tgCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>
+    <small style="opacity:.85">بعد Start البوت بيربط حسابك تلقائي وبيبعتلك رقمك. أو اكتب الرقم بنفسك فوق، وبعدها دوس حفظ.</small>
 
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
@@ -331,6 +350,30 @@ async function openModal() {
   };
   $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
+
+  let botName = localStorage.getItem("ghabaty-bot-user");
+  botUser().then(u => { if (u) botName = u; }).catch(() => {});
+  const gotLinked = id => { st.chatId = id; $("#ntfChat").value = id; notifyUser("اتربط بتيليجرام ✔ دوس حفظ."); };
+  let poll;
+  $("#tgOpen").onclick = async () => {
+    try {
+      if (!botName) botName = await botUser();
+      if (!botName) { notifyUser("مقدرتش أجيب يوزر البوت، جرّب كمان شوية."); return; }
+      window.open(`https://t.me/${botName}?start=${tgTok()}`, "_blank");
+      let tries = 0;
+      clearInterval(poll);
+      poll = setInterval(async () => {
+        if (++tries > 60 || !document.getElementById("ntfModal")) return clearInterval(poll);
+        try { const id = await tgLinked(); if (id) { clearInterval(poll); gotLinked(id); } } catch (e) {}
+      }, 3000);
+    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+  };
+  $("#tgCheck").onclick = async () => {
+    try {
+      const id = await tgLinked();
+      if (id) gotLinked(id); else notifyUser("لسه ما اتربطش. افتح البوت واضغط Start.");
+    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+  };
 
   $("#ntfSave").onclick = async ev => {
     const b = ev.currentTarget;
