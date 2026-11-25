@@ -6,7 +6,11 @@ import admin from "firebase-admin";
 const SA = process.env.FIREBASE_SERVICE_ACCOUNT;
 const BOT = process.env.TELEGRAM_BOT_TOKEN;
 const FORCE = process.env.FORCE === "true";
-const WINDOW_MIN = Number(process.env.WINDOW_MIN || 14);
+// واتساب مجاني عن طريق CallMeBot: لحسابك انت بس (WA_UID = رقم المستخدم بتاعك في Firebase)
+const WA_PHONE = (process.env.CALLMEBOT_PHONE || "").replace(/[^\d]/g, "");
+const WA_KEY = process.env.CALLMEBOT_APIKEY || "";
+const WA_UID = process.env.WA_UID || "";
+const WINDOW_MIN = Number(process.env.WINDOW_MIN || 40);
 
 if (!SA) { console.error("FIREBASE_SERVICE_ACCOUNT secret is missing"); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(SA)) });
@@ -27,7 +31,6 @@ const MESSAGES = [
 const pickMessage = cfg => (cfg.randomMsg !== false || !cfg.message)
   ? MESSAGES[Math.floor(Math.random() * MESSAGES.length)] : cfg.message;
 const toMin = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + (m || 0); };
-const fmt12 = t => { const m = toMin(t), h = Math.floor(m / 60) % 24; return ((h % 12) || 12) + ":" + String(m % 60).padStart(2, "0") + " " + (h >= 12 ? "م" : "ص"); };
 const fmtMin = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
 function nowIn(tz) {
   let zone = tz || "Africa/Cairo";
@@ -73,43 +76,6 @@ function todayTimes(cfg, uid) {
 }
 
 
-// ---- إحصائيات المذاكرة (نفس حساب الموقع) ----
-const fmtDur = m => {
-  m = Math.max(0, Math.round(m));
-  const h = Math.floor(m / 60), r = m % 60;
-  return h ? (r ? `${h} س ${r} د` : `${h} س`) : `${r} د`;
-};
-function dayOf(ms, tz) {
-  let zone = tz || "Africa/Cairo";
-  try { new Intl.DateTimeFormat("en", { timeZone: zone }); } catch (e) { zone = "Africa/Cairo"; }
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms));
-  const g = t => p.find(x => x.type === t).value;
-  return `${g("year")}-${g("month")}-${g("day")}`;
-}
-function todayMinutes(sessions, tz) {
-  const today = dayOf(Date.now(), tz);
-  let mins = 0;
-  for (const s of Array.isArray(sessions) ? sessions : [])
-    if (s && s.start && s.ok && dayOf(s.start, tz) === today) mins += +s.mins || 0;
-  return mins;
-}
-// الجلسات متخزنة في users/{uid}.data كـ JSON (نفس مزامنة الغابة)
-async function goalLine(userRef, cfg) {
-  const goal = Math.max(0, +cfg.goalMin || 0);
-  if (!goal) return "";
-  try {
-    const snap = await userRef.get();
-    const raw = snap.exists ? snap.get("data") : null;
-    const sessions = raw ? (JSON.parse(raw).sessions || []) : [];
-    const done = todayMinutes(sessions, cfg.tz);
-    const pct = Math.min(100, Math.round(done / goal * 100));
-    const bar = "🟩".repeat(Math.round(pct / 10)) + "⬜".repeat(10 - Math.round(pct / 10));
-    return done >= goal
-      ? `\n🎯 ذاكرت ${fmtDur(done)} من ${fmtDur(goal)} (${pct}%)\n🎉 حققت هدفك النهاردة، برافو!`
-      : `\n🎯 ذاكرت ${fmtDur(done)} من ${fmtDur(goal)}\n${bar} ${pct}%\n⏳ فاضل: ${fmtDur(goal - done)}`;
-  } catch (e) { console.warn("goal stats error:", e.message); return ""; }
-}
-
 async function tg(method, body) {
   if (!BOT) return { ok: false };
   try {
@@ -120,6 +86,16 @@ async function tg(method, body) {
     if (!json.ok) console.warn(`Telegram ${method} failed:`, json.description);
     return json;
   } catch (e) { console.warn(`Telegram ${method} error:`, e.message); return { ok: false }; }
+}
+
+async function sendWhatsApp(text) {
+  try {
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${WA_PHONE}&apikey=${encodeURIComponent(WA_KEY)}&text=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    const t = await res.text();
+    if (!res.ok) console.warn("WhatsApp (CallMeBot) failed:", res.status, t.slice(0, 200));
+    return res.ok;
+  } catch (e) { console.warn("WhatsApp error:", e.message); return false; }
 }
 
 async function sendPush(userRef, title, body) {
@@ -181,7 +157,11 @@ async function handleUpdates(updates, entries, send, del) {
 async function pollTelegram(entries) {
   if (!BOT) return;
   const wh = await tg("getWebhookInfo");
-  if (wh.ok && wh.result && wh.result.url) { console.log("telegram: webhook شغال (الـ Worker بيرد على الرسايل)، تخطّيت getUpdates."); return; }
+  if (wh.ok && wh.result && wh.result.url) {
+    console.log("telegram: webhook active -> " + wh.result.url + (wh.result.last_error_message ? " | LAST ERROR: " + wh.result.last_error_message : ""));
+    return;
+  }
+  console.warn("telegram: مفيش webhook متسجّل! الربط الفوري عن طريق الـ Worker مش هيشتغل. افتح <worker-url>/setup مرة واحدة.");
   const r = await tg("getUpdates", { timeout: 0, limit: 100, allowed_updates: ["message"] });
   if (!r.ok) {
     if (r.error_code === 409) console.warn("Telegram: البوت عليه webhook شغال. امسحه بـ deleteWebhook عشان البوت يرد.");
@@ -222,10 +202,11 @@ for (const { userRef, ref, cfg } of entries) {
   if (!due.length) continue;
 
   const title = "غابتي 🌳";
-  const body = pickMessage(cfg) + await goalLine(userRef, cfg);
+  const body = pickMessage(cfg);
   const results = await Promise.allSettled([
-    cfg.chatId ? tg("sendMessage", { chat_id: cfg.chatId, text: `${title}\n${body}` }).then(r => r.ok === true) : false,
-    sendPush(userRef, title, body)
+    cfg.chatId ? tg("sendMessage", { chat_id: cfg.chatId, text: `${title}\n${body}` }).then(r => { if (!r.ok) console.warn(`user ${userRef.id}: telegram send failed -> ${r.description || "no response (TELEGRAM_BOT_TOKEN missing?)"}`); return r.ok === true; }) : false,
+    sendPush(userRef, title, body),
+    (WA_PHONE && WA_KEY && WA_UID && userRef.id === WA_UID) ? sendWhatsApp(`${title}\n${body}`) : false
   ]);
   const ok = results.some(r => r.status === "fulfilled" && r.value === true);
   results.forEach(r => r.status === "rejected" && console.warn("send error:", r.reason?.message || r.reason));
@@ -235,6 +216,6 @@ for (const { userRef, ref, cfg } of entries) {
     await ref.set({ sent: keep }, { merge: true });
   }
   if (ok) sent++;
-  console.log(`user ${userRef.id}: mode=${cfg.mode || "fixed"} today=${times.map(fmt12).join("، ")} due=${due.map(t => t === "test" ? t : fmt12(t)).join("، ")} ok=${ok}`);
+  console.log(`user ${userRef.id}: mode=${cfg.mode || "fixed"} today=${times.join(",")} due=${due.join(",")} ok=${ok}`);
 }
 console.log(`done. users notified: ${sent}`);

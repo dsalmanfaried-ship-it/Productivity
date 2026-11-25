@@ -24,7 +24,6 @@ let pollFn = null; // بنفحص الربط تاني أول ما المستخد�
 window.addEventListener("focus", () => { pollFn && pollFn(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && pollFn) pollFn(); });
 const newLinkCode = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
-const GOALS = [[0, "بدون هدف"], [30, "30 دقيقة"], [60, "ساعة"], [90, "ساعة ونص"], [120, "ساعتين"], [180, "3 ساعات"], [240, "4 ساعات"], [300, "5 ساعات"], [360, "6 ساعات"], [480, "8 ساعات"]];
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -86,60 +85,6 @@ function todayTimes(cfg, uid) {
   return Array.isArray(cfg.times) ? cfg.times : [];
 }
 
-// ---- إحصائيات المذاكرة (نفس الدالة في الموقع وفي السكربت) ----
-const fmtDur = m => {
-  m = Math.max(0, Math.round(m));
-  const h = Math.floor(m / 60), r = m % 60;
-  return h ? (r ? `${h} س ${r} د` : `${h} س`) : `${r} د`;
-};
-function dayOf(ms, tz) {
-  let zone = tz || "Africa/Cairo";
-  try { new Intl.DateTimeFormat("en", { timeZone: zone }); } catch (e) { zone = "Africa/Cairo"; }
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms));
-  const g = t => p.find(x => x.type === t).value;
-  return `${g("year")}-${g("month")}-${g("day")}`;
-}
-function statsFrom(sessions, tz, tagList) {
-  const today = dayOf(Date.now(), tz);
-  const okDays = new Set(), tagMins = {};
-  let todayMin = 0, trees = 0, dead = 0, week = 0;
-  const back = i => { const x = new Date(today + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - i); return x.toISOString().slice(0, 10); };
-  const last7 = new Set(Array.from({ length: 7 }, (_, i) => back(i)));
-  for (const s of Array.isArray(sessions) ? sessions : []) {
-    if (!s || !s.start) continue;
-    const d = dayOf(s.start, tz);
-    if (s.ok) {
-      okDays.add(d);
-      if (last7.has(d)) week += +s.mins || 0;
-      if (d === today) { todayMin += +s.mins || 0; trees++; tagMins[s.tag] = (tagMins[s.tag] || 0) + (+s.mins || 0); }
-    } else if (d === today) dead++;
-  }
-  let streak = 0, i = okDays.has(today) ? 0 : 1;
-  while (okDays.has(back(i))) { streak++; i++; }
-  const names = Object.fromEntries((Array.isArray(tagList) ? tagList : []).map(t => [t.id, t.name]));
-  const tags = Object.entries(tagMins).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, m]) => [names[id] || "بدون تاج", m]);
-  return { today: todayMin, trees, dead, week, streak, tags };
-}
-function statsText(st, goalMin) {
-  const L = ["📊 إحصائيات النهاردة", `⏱ ذاكرت: ${fmtDur(st.today)}`];
-  if (goalMin > 0) {
-    const pct = Math.min(100, Math.round(st.today / goalMin * 100));
-    const filled = Math.round(pct / 10);
-    L.push(`🎯 الهدف: ${fmtDur(goalMin)}`, `${"🟩".repeat(filled)}${"⬜".repeat(10 - filled)} ${pct}%`);
-    L.push(st.today >= goalMin ? "🎉 حققت هدفك النهاردة، برافو!" : `⏳ فاضل: ${fmtDur(goalMin - st.today)}`);
-  }
-  L.push(`🌳 ${st.trees} شجرة` + (st.dead ? `   🥀 ${st.dead} ماتت` : ""));
-  for (const [n, m] of st.tags) L.push(`• ${n}: ${fmtDur(m)}`);
-  L.push(`🗓 آخر 7 أيام: ${fmtDur(st.week)}`);
-  if (st.streak) L.push(`🔥 ${st.streak} يوم ورا بعض`);
-  return L.join("\n");
-}
-function statsShort(st, goalMin) {
-  return goalMin > 0
-    ? `ذاكرت ${fmtDur(st.today)} من ${fmtDur(goalMin)} (${Math.min(100, Math.round(st.today / goalMin * 100))}%)`
-    : `ذاكرت النهاردة ${fmtDur(st.today)}`;
-}
-
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -192,15 +137,6 @@ function readLocalCfg() { try { return JSON.parse(localStorage.getItem(LS_KEY)) 
 function writeLocalCfg(cfg) { try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {} }
 const settingsRef = () => doc(getDb(), "users", currentUser.uid, "settings", "reminders");
 
-function localBody(cfg) {
-  let extra = "";
-  try {
-    if (typeof S !== "undefined" && S && Array.isArray(S.sessions))
-      extra = "\n" + statsShort(statsFrom(S.sessions, cfg.tz, S.tags), Math.max(0, +cfg.goalMin || 0));
-  } catch (e) { /* بدون إحصائيات */ }
-  return pickMessage(cfg) + extra;
-}
-
 // منبّه محلي: يشتغل والموقع مفتوح. بيتوقف لو Push مفعّل عشان ميتكررش الإشعار.
 setInterval(() => {
   const cfg = readLocalCfg();
@@ -212,7 +148,7 @@ setInterval(() => {
   const key = n.date + "_" + hhmm;
   if (times.includes(hhmm) && cfg.lastLocal !== key) {
     writeLocalCfg({ ...cfg, lastLocal: key });
-    showLocal("غابتي 🌳", localBody(cfg));
+    showLocal("غابتي 🌳", pickMessage(cfg));
   }
 }, 20000);
 
@@ -282,16 +218,6 @@ function closeModal() {
   document.getElementById("ntfModal")?.remove();
 }
 
-const to24 = (h, p, isEnd) => {
-  const base = (h % 12) + (p === "pm" ? 12 : 0);
-  return isEnd && base === 0 ? "24:00" : String(base).padStart(2, "0") + ":00";
-};
-const from24 = t => { const h = Math.floor(toMin(t) / 60) % 24; return { h: (h % 12) || 12, p: h >= 12 ? "pm" : "am" }; };
-const fmt12 = t => {
-  const m = toMin(t), h = Math.floor(m / 60) % 24;
-  return ((h % 12) || 12) + ":" + String(m % 60).padStart(2, "0") + " " + (h >= 12 ? "م" : "ص");
-};
-
 async function openModal() {
   closeModal();
   if (!currentUser) { notifyUser("سجّل الدخول بحساب جوجل أولًا."); return; }
@@ -309,7 +235,6 @@ async function openModal() {
     winEnd: cfg.winEnd || "22:00",
     times: new Set(Array.isArray(cfg.times) ? cfg.times : ["08:00", "20:00"]),
     randomMsg: cfg.randomMsg !== false,
-    goalMin: cfg.goalMin === undefined ? 120 : Math.max(0, +cfg.goalMin || 0),
     chatId: cfg.chatId ? String(cfg.chatId) : ""
   };
   let initialChat = st.chatId;
@@ -335,10 +260,8 @@ async function openModal() {
   box.style.cssText = "background:#143d2c;color:#fff;border:1px solid #3d7a56;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:10px";
   const field = "width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #3d7a56;background:#0e2a1e;color:#fff;font:inherit";
   const btn = "padding:12px;border-radius:12px;border:0;font:inherit;font-weight:700;cursor:pointer";
-  const h12 = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
-  const picker = id => `<div style="display:flex;gap:6px">
-      <select id="${id}H" style="${field};flex:1">${h12}</select>
-      <select id="${id}P" style="${field};flex:1"><option value="am">ص</option><option value="pm">م</option></select></div>`;
+  const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0") + ":00");
+  const opts = sel => hours.map(h => `<option value="${h}"${h === sel ? " selected" : ""}>${h}</option>`).join("");
 
   box.innerHTML = `
     <h2 style="margin:0">🔔 إعدادات الإشعارات</h2>
@@ -351,8 +274,8 @@ async function openModal() {
       <div>عدد التذكيرات في اليوم</div>
       <div id="countChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       <div style="display:flex;gap:8px">
-        <label style="flex:1">من${picker("s")}</label>
-        <label style="flex:1">إلى${picker("e")}</label>
+        <label style="flex:1">من<select id="wS" style="${field}">${opts(st.winStart)}</select></label>
+        <label style="flex:1">إلى<select id="wE" style="${field}">${opts(st.winEnd)}</select></label>
       </div>
       <small id="todayList" style="opacity:.85"></small>
     </div>
@@ -371,10 +294,6 @@ async function openModal() {
     </label>
     <input id="ntfMsg" style="${field}" placeholder="اكتب نص التذكير">
 
-    <label>🎯 هدف المذاكرة اليومي (بيظهر في التذكير مع إحصائياتك)
-      <select id="goalSel" style="${field}">${GOALS.map(([m, l]) => `<option value="${m}">${l}</option>`).join("")}</select>
-    </label>
-
     <hr style="width:100%;border:0;border-top:1px solid #3d7a56">
     <div style="font-weight:700">✈️ تذكيرات تيليجرام</div>
     ${BOT_USERNAME ? `
@@ -388,7 +307,6 @@ async function openModal() {
 
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
-    <button id="ntfTest" style="${btn};background:#2f6b4a;color:#fff">🧪 جرّب إشعار دلوقتي</button>
     <button id="ntfClose" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">إغلاق</button>`;
   wrap.appendChild(box);
   wrap.addEventListener("click", e => { if (e.target === wrap) closeModal(); });
@@ -410,10 +328,10 @@ async function openModal() {
 
     $("#countChips").innerHTML = [1, 2, 3, 4, 5].map(n => chip(n, st.count === n, `data-n="${n}"`)).join("");
     const all = [...new Set([...PRESETS, ...st.times])].sort();
-    $("#timeChips").innerHTML = all.map(t => chip(fmt12(t), st.times.has(t), `data-t="${t}"`)).join("");
+    $("#timeChips").innerHTML = all.map(t => chip(t, st.times.has(t), `data-t="${t}"`)).join("");
 
     const preview = todayTimes({ mode: "random", count: st.count, winStart: st.winStart, winEnd: st.winEnd, tz: cfg.tz || Intl.DateTimeFormat().resolvedOptions().timeZone }, currentUser.uid);
-    $("#todayList").textContent = "مواعيد النهاردة: " + preview.map(fmt12).join("، ") + " (بتتغير كل يوم)";
+    $("#todayList").textContent = "مواعيد النهاردة: " + preview.join("، ") + " (بتتغير كل يوم)";
 
     $("#ntfMsg").style.display = st.randomMsg ? "none" : "block";
     $("#randMsg").checked = st.randomMsg;
@@ -425,20 +343,8 @@ async function openModal() {
 
   $("#mRandom").onclick = () => { st.mode = "random"; render(); };
   $("#mFixed").onclick = () => { st.mode = "fixed"; render(); };
-  const s0 = from24(st.winStart), e0 = from24(st.winEnd);
-  $("#sH").value = s0.h; $("#sP").value = s0.p; $("#eH").value = e0.h; $("#eP").value = e0.p;
-  const syncWindow = () => {
-    st.winStart = to24(+$("#sH").value, $("#sP").value, false);
-    st.winEnd = to24(+$("#eH").value, $("#eP").value, true);
-    render();
-  };
-  ["#sH", "#sP", "#eH", "#eP"].forEach(id => { $(id).onchange = syncWindow; });
-  $("#goalSel").value = String(st.goalMin);
-  if ($("#goalSel").value !== String(st.goalMin)) {
-    $("#goalSel").insertAdjacentHTML("beforeend", `<option value="${st.goalMin}">${fmtDur(st.goalMin)}</option>`);
-    $("#goalSel").value = String(st.goalMin);
-  }
-  $("#goalSel").onchange = e => { st.goalMin = +e.target.value; };
+  $("#wS").onchange = e => { st.winStart = e.target.value; render(); };
+  $("#wE").onchange = e => { st.winEnd = e.target.value; render(); };
   $("#randMsg").onchange = e => { st.randomMsg = e.target.checked; render(); };
   $("#countChips").onclick = e => { const n = e.target.closest("[data-n]"); if (n) { st.count = +n.dataset.n; render(); } };
   $("#timeChips").onclick = e => {
@@ -453,12 +359,6 @@ async function openModal() {
   };
   $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
-  $("#ntfTest").onclick = async () => {
-    if (!("Notification" in window)) { notifyUser("المتصفح لا يدعم إشعارات الويب."); return; }
-    if (Notification.permission !== "granted") await Notification.requestPermission();
-    if (Notification.permission !== "granted") { notifyUser("إذن الإشعارات مرفوض. فعّله من إعدادات الموقع."); return; }
-    await showLocal("غابتي 🌳", localBody({ ...readLocalCfg(), randomMsg: true }));
-  };
   /* ربط فوري عن طريق الـ Worker: بنسأله كل 3 ثواني (لحد 3 دقايق) هل الكود اتربط */
   let pollT = null, polls = 0, busy = false;
   const workerCheck = async () => {
@@ -522,7 +422,7 @@ async function openModal() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
       const data = {
         mode: st.mode, count: st.count, winStart: st.winStart, winEnd: st.winEnd,
-        times, randomMsg: st.randomMsg, message, goalMin: st.goalMin, tz,
+        times, randomMsg: st.randomMsg, message, tz,
         enabled: true, updatedAt: serverTimestamp()
       };
       // ما نمسحش رقم اتربط تلقائي من البوت وإحنا فاتحين النافذة، إلا لو المستخدم مسحه بإيده

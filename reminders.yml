@@ -1,24 +1,18 @@
-name: Study reminders
-
+name: send-reminders
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       force:
-        description: "ابعت تذكير تجريبي فورًا"
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-
+        description: "اختبار: ابعت تذكير فوري لكل المستخدمين"
+        required: false
+        default: "false"
 concurrency:
   group: reminders
   cancel-in-progress: false
-
 jobs:
-  send:
+  run:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -26,9 +20,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install --no-save firebase-admin@12
-      - run: node scripts/send-reminders.mjs
+      - run: npm install firebase-admin --no-save
+      - run: node send-reminders.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          FORCE: ${{ inputs.force }}
+          FORCE: ${{ github.event.inputs.force }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          WA_UID: ${{ secrets.WA_UID }}

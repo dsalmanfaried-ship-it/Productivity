@@ -34,7 +34,9 @@ export default {
         const cmd = (cmdRaw || "").toLowerCase().replace(/@\w+$/, "");
         const token = argRaw || "";
         let text;
-        if (cmd === "/start" && TOKEN_RE.test(token)) {
+        if (cmd === "/stop") {
+          text = "لإيقاف التذكيرات: افتح غابتي ← حسابي ← إعدادات الإشعارات وامسح رقم تيليجرام، واضغط حفظ.";
+        } else if (cmd === "/start" && TOKEN_RE.test(token)) {
           await env.KV.put("link:" + token, id, { expirationTtl: 3600 });
           text = `تم ربط حسابك في غابتي ✅\nارجع للتطبيق، هيتربط لوحده.\n\nرقمك (Chat ID): <code>${id}</code>`;
         } else {
@@ -67,7 +69,12 @@ export default {
       return json({ username: name || null });
     }
 
-    // حالة الويب هوك (للفحص)
+    // حالة الويب هوك (للفحص) — لو ضفت WEBHOOK_SECRET لازم تفتحها بـ ?key=السر
+    if (u.pathname === "/status" || u.pathname === "/setup") {
+      if (!env.BOT_TOKEN) return json({ ok: false, error: "BOT_TOKEN secret is missing in Cloudflare" }, 500);
+      if (!env.KV) return json({ ok: false, error: "KV binding named KV is missing in Cloudflare" }, 500);
+      if (env.WEBHOOK_SECRET && u.searchParams.get("key") !== env.WEBHOOK_SECRET) return json({ ok: false, error: "add ?key=WEBHOOK_SECRET" }, 401);
+    }
     if (u.pathname === "/status") {
       const r = await (await tg(env, "getWebhookInfo")).json();
       const i = r.result || r;
