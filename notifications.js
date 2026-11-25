@@ -14,24 +14,17 @@ const firebaseConfig = {
   appId: "1:872681239030:web:ed56a9cfd6994b317a57d7"
 };
 const VAPID_KEY = "BLBNmaVO2SvuuBrSiuO0BLpMkfbIiiwqw-6R7t9DPmArX0hWuSo38OfrvgNWxqDj70SnDwRxk7wINKrODmHl5PE";
+// اسم بوت تيليجرام بتاعك من غير @ (مثال: GhabatyBot). لو سيبته فاضي، الزرار مش هيظهر.
+const BOT_USERNAME_RAW = "FORESTsolybot";
+const BOT_USERNAME = /^[A-Za-z0-9_]{4,32}$/.test(BOT_USERNAME_RAW) ? BOT_USERNAME_RAW : "";
+// رابط الـ Worker على Cloudflare: بيربط تيليجرام فورًا (لو فاضي بيشتغل الربط القديم عن طريق Firestore).
+const WORKER_URL = "https://ghabaty-bot.dsalmanfaried.workers.dev";
 const LS_KEY = "ghabaty-reminders";
-const WORKER = "https://ghabaty-bot.dsalmanfaried.workers.dev";
-const tgTok = () => {
-  let t = localStorage.getItem("ghabaty-tg-token");
-  if (!t) { t = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); localStorage.setItem("ghabaty-tg-token", t); }
-  return t;
-};
-async function botUser() {
-  const c = localStorage.getItem("ghabaty-bot-user");
-  if (c) return c;
-  const j = await (await fetch(WORKER + "/info")).json();
-  if (j.username) localStorage.setItem("ghabaty-bot-user", j.username);
-  return j.username || null;
-}
-async function tgLinked() {
-  const j = await (await fetch(`${WORKER}/check?token=${tgTok()}`)).json();
-  return j.chat_id || null;
-}
+let pollFn = null; // بنفحص الربط تاني أول ما المستخدم يرجع للتطبيق من تيليجرام
+window.addEventListener("focus", () => { pollFn && pollFn(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && pollFn) pollFn(); });
+const newLinkCode = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
+const GOALS = [[0, "بدون هدف"], [30, "30 دقيقة"], [60, "ساعة"], [90, "ساعة ونص"], [120, "ساعتين"], [180, "3 ساعات"], [240, "4 ساعات"], [300, "5 ساعات"], [360, "6 ساعات"], [480, "8 ساعات"]];
 const PRESETS = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
 
 const MESSAGES = [
@@ -93,6 +86,60 @@ function todayTimes(cfg, uid) {
   return Array.isArray(cfg.times) ? cfg.times : [];
 }
 
+// ---- إحصائيات المذاكرة (نفس الدالة في الموقع وفي السكربت) ----
+const fmtDur = m => {
+  m = Math.max(0, Math.round(m));
+  const h = Math.floor(m / 60), r = m % 60;
+  return h ? (r ? `${h} س ${r} د` : `${h} س`) : `${r} د`;
+};
+function dayOf(ms, tz) {
+  let zone = tz || "Africa/Cairo";
+  try { new Intl.DateTimeFormat("en", { timeZone: zone }); } catch (e) { zone = "Africa/Cairo"; }
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(ms));
+  const g = t => p.find(x => x.type === t).value;
+  return `${g("year")}-${g("month")}-${g("day")}`;
+}
+function statsFrom(sessions, tz, tagList) {
+  const today = dayOf(Date.now(), tz);
+  const okDays = new Set(), tagMins = {};
+  let todayMin = 0, trees = 0, dead = 0, week = 0;
+  const back = i => { const x = new Date(today + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - i); return x.toISOString().slice(0, 10); };
+  const last7 = new Set(Array.from({ length: 7 }, (_, i) => back(i)));
+  for (const s of Array.isArray(sessions) ? sessions : []) {
+    if (!s || !s.start) continue;
+    const d = dayOf(s.start, tz);
+    if (s.ok) {
+      okDays.add(d);
+      if (last7.has(d)) week += +s.mins || 0;
+      if (d === today) { todayMin += +s.mins || 0; trees++; tagMins[s.tag] = (tagMins[s.tag] || 0) + (+s.mins || 0); }
+    } else if (d === today) dead++;
+  }
+  let streak = 0, i = okDays.has(today) ? 0 : 1;
+  while (okDays.has(back(i))) { streak++; i++; }
+  const names = Object.fromEntries((Array.isArray(tagList) ? tagList : []).map(t => [t.id, t.name]));
+  const tags = Object.entries(tagMins).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, m]) => [names[id] || "بدون تاج", m]);
+  return { today: todayMin, trees, dead, week, streak, tags };
+}
+function statsText(st, goalMin) {
+  const L = ["📊 إحصائيات النهاردة", `⏱ ذاكرت: ${fmtDur(st.today)}`];
+  if (goalMin > 0) {
+    const pct = Math.min(100, Math.round(st.today / goalMin * 100));
+    const filled = Math.round(pct / 10);
+    L.push(`🎯 الهدف: ${fmtDur(goalMin)}`, `${"🟩".repeat(filled)}${"⬜".repeat(10 - filled)} ${pct}%`);
+    L.push(st.today >= goalMin ? "🎉 حققت هدفك النهاردة، برافو!" : `⏳ فاضل: ${fmtDur(goalMin - st.today)}`);
+  }
+  L.push(`🌳 ${st.trees} شجرة` + (st.dead ? `   🥀 ${st.dead} ماتت` : ""));
+  for (const [n, m] of st.tags) L.push(`• ${n}: ${fmtDur(m)}`);
+  L.push(`🗓 آخر 7 أيام: ${fmtDur(st.week)}`);
+  if (st.streak) L.push(`🔥 ${st.streak} يوم ورا بعض`);
+  return L.join("\n");
+}
+function statsShort(st, goalMin) {
+  return goalMin > 0
+    ? `ذاكرت ${fmtDur(st.today)} من ${fmtDur(goalMin)} (${Math.min(100, Math.round(st.today / goalMin * 100))}%)`
+    : `ذاكرت النهاردة ${fmtDur(st.today)}`;
+}
+
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -145,6 +192,15 @@ function readLocalCfg() { try { return JSON.parse(localStorage.getItem(LS_KEY)) 
 function writeLocalCfg(cfg) { try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {} }
 const settingsRef = () => doc(getDb(), "users", currentUser.uid, "settings", "reminders");
 
+function localBody(cfg) {
+  let extra = "";
+  try {
+    if (typeof S !== "undefined" && S && Array.isArray(S.sessions))
+      extra = "\n" + statsShort(statsFrom(S.sessions, cfg.tz, S.tags), Math.max(0, +cfg.goalMin || 0));
+  } catch (e) { /* بدون إحصائيات */ }
+  return pickMessage(cfg) + extra;
+}
+
 // منبّه محلي: يشتغل والموقع مفتوح. بيتوقف لو Push مفعّل عشان ميتكررش الإشعار.
 setInterval(() => {
   const cfg = readLocalCfg();
@@ -156,7 +212,7 @@ setInterval(() => {
   const key = n.date + "_" + hhmm;
   if (times.includes(hhmm) && cfg.lastLocal !== key) {
     writeLocalCfg({ ...cfg, lastLocal: key });
-    showLocal("غابتي 🌳", pickMessage(cfg));
+    showLocal("غابتي 🌳", localBody(cfg));
   }
 }, 20000);
 
@@ -226,6 +282,16 @@ function closeModal() {
   document.getElementById("ntfModal")?.remove();
 }
 
+const to24 = (h, p, isEnd) => {
+  const base = (h % 12) + (p === "pm" ? 12 : 0);
+  return isEnd && base === 0 ? "24:00" : String(base).padStart(2, "0") + ":00";
+};
+const from24 = t => { const h = Math.floor(toMin(t) / 60) % 24; return { h: (h % 12) || 12, p: h >= 12 ? "pm" : "am" }; };
+const fmt12 = t => {
+  const m = toMin(t), h = Math.floor(m / 60) % 24;
+  return ((h % 12) || 12) + ":" + String(m % 60).padStart(2, "0") + " " + (h >= 12 ? "م" : "ص");
+};
+
 async function openModal() {
   closeModal();
   if (!currentUser) { notifyUser("سجّل الدخول بحساب جوجل أولًا."); return; }
@@ -243,8 +309,23 @@ async function openModal() {
     winEnd: cfg.winEnd || "22:00",
     times: new Set(Array.isArray(cfg.times) ? cfg.times : ["08:00", "20:00"]),
     randomMsg: cfg.randomMsg !== false,
-    chatId: /^(\+|0)\d{9,}$/.test(String(cfg.chatId || "")) ? "" : (cfg.chatId || "")
+    goalMin: cfg.goalMin === undefined ? 120 : Math.max(0, +cfg.goalMin || 0),
+    chatId: cfg.chatId ? String(cfg.chatId) : ""
   };
+  let initialChat = st.chatId;
+  // كود ربط سري: البوت بيستخدمه لما المستخدم يدوس Start عشان يربط الحساب تلقائي
+  let linkCode = WORKER_URL ? newLinkCode() : (cfg.linkCode || "");
+  const fresh = !WORKER_URL && BOT_USERNAME && !linkCode;
+  if (fresh) linkCode = newLinkCode();
+  const botHref = () => "https://t.me/" + BOT_USERNAME + (linkCode ? "?start=" + linkCode : "");
+  if (fresh) {
+    setDoc(settingsRef(), { linkCode }, { merge: true }).catch(e => {
+      console.warn("[Notifications] link code save failed", e);
+      linkCode = "";
+      const a = document.getElementById("ntfBot");
+      if (a) a.href = botHref();
+    });
+  }
 
   const wrap = document.createElement("div");
   wrap.id = "ntfModal";
@@ -254,12 +335,10 @@ async function openModal() {
   box.style.cssText = "background:#143d2c;color:#fff;border:1px solid #3d7a56;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:10px";
   const field = "width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #3d7a56;background:#0e2a1e;color:#fff;font:inherit";
   const btn = "padding:12px;border-radius:12px;border:0;font:inherit;font-weight:700;cursor:pointer";
-  const to12 = v => { const h = (parseInt(v, 10) || 0) % 24; return { h: h % 12 || 12, pm: h >= 12 }; };
-  const to24 = (h12, pm) => String((h12 % 12) + (pm ? 12 : 0)).padStart(2, "0") + ":00";
-  const fmt12 = t => { const [h, m] = String(t).split(":").map(Number); return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "م" : "ص"}`; };
-  const hOpts = sel => Array.from({ length: 12 }, (_, i) => i + 1).map(n => `<option value="${n}"${n === sel ? " selected" : ""}>${n}</option>`).join("");
-  const apOpts = pm => `<option value="am"${pm ? "" : " selected"}>ص</option><option value="pm"${pm ? " selected" : ""}>م</option>`;
-  const S0 = to12(st.winStart), E0 = to12(st.winEnd);
+  const h12 = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+  const picker = id => `<div style="display:flex;gap:6px">
+      <select id="${id}H" style="${field};flex:1">${h12}</select>
+      <select id="${id}P" style="${field};flex:1"><option value="am">ص</option><option value="pm">م</option></select></div>`;
 
   box.innerHTML = `
     <h2 style="margin:0">🔔 إعدادات الإشعارات</h2>
@@ -272,12 +351,8 @@ async function openModal() {
       <div>عدد التذكيرات في اليوم</div>
       <div id="countChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       <div style="display:flex;gap:8px">
-        <div style="flex:1">من
-          <div style="display:flex;gap:6px"><select id="wSh" style="${field}">${hOpts(S0.h)}</select><select id="wSa" style="${field}">${apOpts(S0.pm)}</select></div>
-        </div>
-        <div style="flex:1">إلى
-          <div style="display:flex;gap:6px"><select id="wEh" style="${field}">${hOpts(E0.h)}</select><select id="wEa" style="${field}">${apOpts(E0.pm)}</select></div>
-        </div>
+        <label style="flex:1">من${picker("s")}</label>
+        <label style="flex:1">إلى${picker("e")}</label>
       </div>
       <small id="todayList" style="opacity:.85"></small>
     </div>
@@ -296,23 +371,24 @@ async function openModal() {
     </label>
     <input id="ntfMsg" style="${field}" placeholder="اكتب نص التذكير">
 
+    <label>🎯 هدف المذاكرة اليومي (بيظهر في التذكير مع إحصائياتك)
+      <select id="goalSel" style="${field}">${GOALS.map(([m, l]) => `<option value="${m}">${l}</option>`).join("")}</select>
+    </label>
+
     <hr style="width:100%;border:0;border-top:1px solid #3d7a56">
     <div style="font-weight:700">✈️ تذكيرات تيليجرام</div>
-    <button id="tgOpen" style="${btn};background:#2f6b4a;color:#fff">🤖 افتح البوت واضغط Start</button>
-    <small style="opacity:.85">بعد Start البوت بيربط حسابك لوحده (ممكن ياخد كام ثانية). مش محتاج تكتب أي رقم.</small>
-    <button id="tgCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>
-    <small id="tgStatus" style="opacity:.95"></small>
-    <details>
-      <summary style="cursor:pointer;opacity:.85">أو اكتب رقم حسابك يدويًا</summary>
-      <label style="display:block;margin-top:8px">رقم حسابك في تيليجرام (مش رقم الموبايل)
-        <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
-      </label>
-      <small style="opacity:.85">تيليجرام مبيسمحش للبوتات تبعت برقم الموبايل. تعرف رقم حسابك لو بعت /start لـ @userinfobot.</small>
-    </details>
+    ${BOT_USERNAME ? `
+    <a id="ntfBot" href="${botHref()}" target="_blank" rel="noopener" style="${btn};background:#2f6b4a;color:#fff;text-align:center;text-decoration:none;display:block">🤖 افتح البوت واضغط Start</a>
+    <small style="opacity:.85">دوس Start في البوت وارجع هنا، حسابك هيتربط لوحده. وتقدر كمان تنسخ الرقم من البوت وتلصقه تحت.</small>
+    <button id="ntfCheck" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🔄 تحقق من الربط</button>`
+    : `<small style="opacity:.85">ابعت أي رسالة للبوت وهيرد عليك برقمك (Chat ID)، والصقه تحت.</small>`}
+    <label>رقم تيليجرام (Chat ID)
+      <input id="ntfChat" inputmode="numeric" style="${field}" placeholder="مثال: 123456789">
+    </label>
 
-    <button id="ntfTest" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">🧪 جرّب إشعار دلوقتي</button>
     <button id="ntfSave" style="${btn};background:#9be07a;color:#0e2a1e">💾 حفظ</button>
     <button id="ntfBrowser" style="${btn};background:#2f6b4a;color:#fff">🔔 تفعيل إشعارات المتصفح</button>
+    <button id="ntfTest" style="${btn};background:#2f6b4a;color:#fff">🧪 جرّب إشعار دلوقتي</button>
     <button id="ntfClose" style="${btn};background:transparent;color:#fff;border:1px solid #3d7a56">إغلاق</button>`;
   wrap.appendChild(box);
   wrap.addEventListener("click", e => { if (e.target === wrap) closeModal(); });
@@ -343,19 +419,26 @@ async function openModal() {
     $("#randMsg").checked = st.randomMsg;
 
     $("#ntfChat").value = st.chatId;
-    $("#tgStatus").textContent = st.chatId ? "✅ تيليجرام متربط" : "لسه مش متربط";
   }
   $("#ntfMsg").value = cfg.message || "";
   render();
 
   $("#mRandom").onclick = () => { st.mode = "random"; render(); };
   $("#mFixed").onclick = () => { st.mode = "fixed"; render(); };
-  const syncWin = () => {
-    st.winStart = to24(+$("#wSh").value, $("#wSa").value === "pm");
-    st.winEnd = to24(+$("#wEh").value, $("#wEa").value === "pm");
+  const s0 = from24(st.winStart), e0 = from24(st.winEnd);
+  $("#sH").value = s0.h; $("#sP").value = s0.p; $("#eH").value = e0.h; $("#eP").value = e0.p;
+  const syncWindow = () => {
+    st.winStart = to24(+$("#sH").value, $("#sP").value, false);
+    st.winEnd = to24(+$("#eH").value, $("#eP").value, true);
     render();
   };
-  ["#wSh", "#wSa", "#wEh", "#wEa"].forEach(id => { $(id).onchange = syncWin; });
+  ["#sH", "#sP", "#eH", "#eP"].forEach(id => { $(id).onchange = syncWindow; });
+  $("#goalSel").value = String(st.goalMin);
+  if ($("#goalSel").value !== String(st.goalMin)) {
+    $("#goalSel").insertAdjacentHTML("beforeend", `<option value="${st.goalMin}">${fmtDur(st.goalMin)}</option>`);
+    $("#goalSel").value = String(st.goalMin);
+  }
+  $("#goalSel").onchange = e => { st.goalMin = +e.target.value; };
   $("#randMsg").onchange = e => { st.randomMsg = e.target.checked; render(); };
   $("#countChips").onclick = e => { const n = e.target.closest("[data-n]"); if (n) { st.count = +n.dataset.n; render(); } };
   $("#timeChips").onclick = e => {
@@ -370,49 +453,63 @@ async function openModal() {
   };
   $("#ntfChat").oninput = e => { st.chatId = toLatinDigits(e.target.value).trim(); };
   $("#ntfClose").onclick = closeModal;
-
-  $("#ntfTest").onclick = async ev => {
-    const b = ev.currentTarget;
-    b.disabled = true;
-    try { await showLocal("غابتي 🌳", "تجربة إشعار المتصفح ✔"); } catch (e) {}
-    try {
-      const r = await (await fetch(`${WORKER}/test?token=${tgTok()}`)).json();
-      if (r.ok) notifyUser("اتبعتت تجربة على تيليجرام ✔ شوف الشات.");
-      else if (r.error === "not linked") notifyUser("تيليجرام لسه مش متربط. دوس «افتح البوت واضغط Start».");
-      else if (r.error === "wait") notifyUser("استنى دقيقة وجرّب تاني.");
-      else notifyUser("تيليجرام: " + (r.description || "فشل الإرسال"));
-    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
-    b.disabled = false;
+  $("#ntfTest").onclick = async () => {
+    if (!("Notification" in window)) { notifyUser("المتصفح لا يدعم إشعارات الويب."); return; }
+    if (Notification.permission !== "granted") await Notification.requestPermission();
+    if (Notification.permission !== "granted") { notifyUser("إذن الإشعارات مرفوض. فعّله من إعدادات الموقع."); return; }
+    await showLocal("غابتي 🌳", localBody({ ...readLocalCfg(), randomMsg: true }));
   };
-
-  let botName = localStorage.getItem("ghabaty-bot-user");
-  botUser().then(u => { if (u) botName = u; }).catch(() => {});
-  const gotLinked = id => { st.chatId = id; $("#ntfChat").value = id; notifyUser("اتربط بتيليجرام ✔ دوس حفظ."); };
-  let poll;
-  $("#tgOpen").onclick = async () => {
-    try {
-      if (!botName) botName = await botUser();
-      if (!botName) { notifyUser("مقدرتش أجيب يوزر البوت، جرّب كمان شوية."); return; }
-      window.open(`https://t.me/${botName}?start=${tgTok()}`, "_blank");
-      let tries = 0;
-      clearInterval(poll);
-      poll = setInterval(async () => {
-        if (++tries > 60 || !document.getElementById("ntfModal")) return clearInterval(poll);
-        try { const id = await tgLinked(); if (id) { clearInterval(poll); gotLinked(id); } } catch (e) {}
-      }, 3000);
-    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+  /* ربط فوري عن طريق الـ Worker: بنسأله كل 3 ثواني (لحد 3 دقايق) هل الكود اتربط */
+  let pollT = null, polls = 0, busy = false;
+  const workerCheck = async () => {
+    const r = await fetch(WORKER_URL + "/check?token=" + encodeURIComponent(linkCode));
+    const j = await r.json();
+    return j && j.chat_id ? String(j.chat_id) : "";
   };
-  $("#tgCheck").onclick = async () => {
+  const onLinked = async id => {
+    st.chatId = initialChat = id;
+    $("#ntfChat").value = id;
+    notifyUser("اتربط حسابك بتيليجرام ✔");
+    await $("#ntfSave").onclick({ currentTarget: $("#ntfSave") }); // يحفظ الإعدادات على طول
+  };
+  const tryLink = async () => {
+    if (!document.getElementById("ntfModal") || busy) return false;
+    busy = true;
+    try { const id = await workerCheck(); if (id) { await onLinked(id); return true; } }
+    catch (e) { /* الشبكة وحشة: هنحاول تاني */ }
+    finally { busy = false; }
+    return false;
+  };
+  const stopPoll = () => { clearInterval(pollT); pollT = null; if (pollFn === tryLink) pollFn = null; };
+  const startPoll = () => {
+    stopPoll(); polls = 0; pollFn = tryLink;
+    pollT = setInterval(async () => {
+      if (!document.getElementById("ntfModal") || ++polls > 60 || await tryLink()) stopPoll();
+    }, 3000);
+  };
+  const botLink = $("#ntfBot");
+  if (botLink && WORKER_URL) botLink.addEventListener("click", startPoll);
+
+  const chk = $("#ntfCheck");
+  if (chk) chk.onclick = async () => {
     try {
-      const id = await tgLinked();
-      if (id) gotLinked(id); else notifyUser("لسه ما اتربطش. افتح البوت واضغط Start.");
-    } catch (e) { notifyUser("مشكلة في الاتصال بالسيرفر."); }
+      if (WORKER_URL) {
+        const id = await workerCheck().catch(() => "");
+        if (id) { await onLinked(id); return; }
+      }
+      const snap = await getDoc(settingsRef());
+      const c = snap.exists() ? snap.data().chatId : "";
+      if (c) {
+        st.chatId = initialChat = String(c);
+        $("#ntfChat").value = st.chatId;
+        notifyUser("اتربط حسابك بتيليجرام ✔");
+      } else notifyUser("لسه ما اتربطش. دوس Start في البوت وجرّب بعد كام دقيقة.");
+    } catch (e) { notifyUser(explainError(e)); }
   };
 
   $("#ntfSave").onclick = async ev => {
     const b = ev.currentTarget;
-    if (/^(\+|0)\d{9,}$/.test(st.chatId)) { notifyUser("ده رقم موبايل وتيليجرام مبيقبلوش للبوت. دوس «افتح البوت واضغط Start» وهيتربط لوحده."); return; }
-    if (st.chatId && !/^-?\d{5,20}$/.test(st.chatId)) { notifyUser("الرقم لازم يكون أرقام فقط."); return; }
+    if (st.chatId && !/^-?\d{5,20}$/.test(st.chatId)) { notifyUser("Chat ID لازم يكون أرقام فقط."); return; }
     if (st.mode === "random" && toMin(st.winEnd) - toMin(st.winStart) < st.count * 30) {
       notifyUser("الفترة قصيرة على العدد ده. وسّع الفترة أو قلّل عدد التذكيرات."); return;
     }
@@ -425,9 +522,11 @@ async function openModal() {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
       const data = {
         mode: st.mode, count: st.count, winStart: st.winStart, winEnd: st.winEnd,
-        times, randomMsg: st.randomMsg, message, chatId: st.chatId, tz,
+        times, randomMsg: st.randomMsg, message, goalMin: st.goalMin, tz,
         enabled: true, updatedAt: serverTimestamp()
       };
+      // ما نمسحش رقم اتربط تلقائي من البوت وإحنا فاتحين النافذة، إلا لو المستخدم مسحه بإيده
+      if (st.chatId || initialChat) data.chatId = st.chatId;
       await setDoc(settingsRef(), data, { merge: true });
       writeLocalCfg({ ...readLocalCfg(), ...data, updatedAt: undefined, uid: currentUser.uid });
       notifyUser("اتحفظت الإعدادات ✔");
