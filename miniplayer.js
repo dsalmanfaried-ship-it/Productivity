@@ -19,13 +19,18 @@ const BGS = [
 ];
 
 let win = null, vid = null, cv = null, ticker = null;
-let mode = null; // "doc" (نافذة PiP حقيقية) | "video" (PiP فيديو: موبايل/تابلت/سفاري) | "popup" (نافذة عادية)
+let mode = null; // "doc" (نافذة PiP حقيقية) | "video" (PiP فيديو: موبايل/تابلت/سفاري) | "popup" (نافذة عادية) | "inline" (عايمة جوه الصفحة: تابلت/موبايل مش بيدعم PiP)
+let panel = null;
 let muted = false, lastSave = 0, bgIdx = 0;
 try { bgIdx = Math.min(Math.max(+JSON.parse(localStorage.getItem(LS)).theme || 0, 0), BGS.length - 1); } catch (e) {}
 
 const say = m => (typeof window.toast === "function" ? window.toast(m) : console.info("[Mini]", m));
 const appReady = () => typeof S !== "undefined" && S && typeof fmt === "function" && typeof pauseRun === "function" && typeof resumeRun === "function";
 const isOpen = () => mode !== null && (mode === "video" || !!(win && !win.closed));
+// النافذة اللي جوه الصفحة مش بتحمي الشجرة (مفيش حاجة بتفضل ظاهرة لو سبت المتصفح)
+const keepsAlive = () => isOpen() && mode !== "inline";
+const isTouch = () => matchMedia("(pointer: coarse)").matches;
+const SOUNDS = [["none", "🔕", "بدون"], ["quran", "📖", "البقرة"], ["rain", "🌧️", "مطر"], ["forest", "🐦", "غابة"]];
 const canDoc = () => !!window.documentPictureInPicture;
 const canVideo = () => !!(document.pictureInPictureEnabled && HTMLCanvasElement.prototype.captureStream && HTMLVideoElement.prototype.requestPictureInPicture);
 
@@ -62,7 +67,7 @@ function core() {
   if (!a) return (cur = { text: idleText(), paused: true, state: "idle", p: 1, species: S.species });
   const el = (a.pausedAt || now) - a.start;
   const remain = a.mode === "down" ? a.dur - el : el;
-  if (!a.pausedAt && document.hidden) {
+  if (!a.pausedAt && document.hidden && keepsAlive()) {
     // التبويب مخفي: تيك التطبيق واقف، فإحنا اللي بنكمّل الحساب ونمنع موت الشجرة
     try { clearTimeout(killT); } catch (e) {}
     delete a.leftAt;
@@ -146,7 +151,7 @@ body.site{background:radial-gradient(500px 300px at 50% -10%,#1f7a5a 0%,#0f3a2d 
 [hidden]{display:none!important}
 button,select{font:inherit;color:inherit;border:0;cursor:pointer;background:rgba(128,128,128,.25);border-radius:999px}
 button:disabled{opacity:.35;cursor:default}
-.stage{position:relative;width:min(56vw,calc(100vh - 290px),190px);aspect-ratio:1;flex:none}
+.stage{position:relative;width:min(56vw,calc(100vh - 310px),190px);aspect-ratio:1;flex:none}
 .stage svg{width:100%;height:100%}
 .ring{position:absolute;inset:0;transform:rotate(-90deg)}
 .ring circle{fill:none;stroke-width:6;stroke:rgba(128,128,128,.25)}
@@ -162,8 +167,12 @@ button:disabled{opacity:.35;cursor:default}
 .seg button{flex:1}
 .seg button.on,.main{background:#9be07a;color:#12351f}
 .main{flex:1;font-weight:800}
-select{flex:1;min-width:0;padding:6px 10px;font-size:13px}
-option{background:#143f31;color:#fff}
+.snd{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.snd button{border-radius:14px;padding:5px 0 3px;display:flex;flex-direction:column;align-items:center;font-size:11px;font-weight:700;line-height:1.5;border:2px solid transparent}
+.snd button span{font-size:18px;line-height:1.3}
+.snd button.on{border-color:#9be07a;background:rgba(155,224,122,.22)}
+.vol{background:rgba(128,128,128,.18);border-radius:999px;padding:3px 5px 3px 12px}
+button:active{transform:scale(.95)}
 input[type=range]{flex:1;min-width:0;accent-color:#9be07a;direction:ltr}
 .icon{width:34px;height:34px;flex:none;padding:0!important}
 .mini{display:none}
@@ -180,8 +189,8 @@ const HTML = `<div class="wrap">
   <div class="row" id="acts" dir="rtl"><button class="main" id="play"></button><button id="done">خلصت ✔</button><button id="give">استسلم 🥀</button><button id="brk">☕ بريك</button><button id="endr">إنهاء البريك</button></div>
   <div class="row breaks" id="breaks" dir="rtl"></div>
   <div class="row extra" id="yasin" dir="rtl"><button id="yt">🎧 يس ⏯</button><button id="yn">⏭ شيخ تاني</button></div>
-  <div class="row extra" id="snd" dir="rtl"><select id="sound" title="صوت الخلفية"><option value="none">بدون صوت</option><option value="quran">سورة البقرة 📖</option><option value="rain">مطر 🌧️</option><option value="forest">غابة 🐦</option></select></div>
-  <div class="row extra" dir="rtl"><button class="icon" id="mute" title="كتم / تشغيل الصوت"></button><input type="range" id="vol" min="0" max="100" step="5" title="مستوى الصوت"></div>
+  <div class="row extra snd" id="snd" dir="rtl"></div>
+  <div class="row extra vol" dir="rtl"><button class="icon" id="mute" title="كتم / تشغيل الصوت"></button><input type="range" id="vol" min="0" max="100" step="5" title="مستوى الصوت"></div>
   <button class="icon mini" id="mute2" title="كتم / تشغيل الصوت"></button><button class="icon mini" id="play2" title="إيقاف / تشغيل"></button>
 </div>`;
 
@@ -220,7 +229,7 @@ function refreshDom() {
   ui.breaks.hidden = !(idle && showBreaks);
   ui.yasin.hidden = !(rest && S.yasin.on);
   ui.snd.hidden = rest;
-  if (ui.doc.activeElement !== ui.sound) set(ui.sound, "value", S.sound);
+  for (const b of ui.snd.children) b.classList.toggle("on", b.dataset.s === S.sound);
   if (ui.doc.activeElement !== ui.vol) set(ui.vol, "value", String(Math.round((muted ? 0 : S.vol ?? 1) * 100)));
   set(ui.mute, "textContent", muted ? "🔇" : "🔊");
   set(ui.mute2, "textContent", muted ? "🔇" : "🔊");
@@ -323,7 +332,13 @@ function buildDomWindow(w) {
   ui.endr.onclick = () => act("endRest");
   ui.yt.onclick = () => act("ytoggle");
   ui.yn.onclick = () => act("ynext");
-  ui.sound.onchange = () => { setSound(ui.sound.value); ui.sound.blur(); };
+  SOUNDS.forEach(([v, icon, name]) => {
+    const b = d.createElement("button");
+    b.dataset.s = v;
+    b.innerHTML = "<span>" + icon + "</span>" + name;
+    b.onclick = () => setSound(v);
+    ui.snd.append(b);
+  });
   ui.vol.oninput = () => setVolume(ui.vol.value / 100);
   ui.vol.onchange = () => ui.vol.blur();
   paint();
@@ -339,23 +354,28 @@ async function openDoc() {
   return true;
 }
 
+const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
 async function openVideo() {
   cv = document.createElement("canvas");
   cv.width = 480; cv.height = 270;
   vid = document.createElement("video");
   vid.muted = true; vid.playsInline = true; vid.setAttribute("playsinline", "");
-  vid.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+  // لازم يفضل جوه الشاشة (شبه مخفي) عشان بعض متصفحات التابلت تحمّله
+  vid.style.cssText = "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none";
   document.body.append(vid);
   imgKey = ""; treeImg = null;
   core(); drawCanvas();
   vid.srcObject = cv.captureStream(5);
+  // من غير رسم مستمر الفيديو ممكن يفضل «بيحمّل» ومايبدأش
+  const feed = setInterval(drawCanvas, 100);
   try {
-    await vid.play();
-    await vid.requestPictureInPicture();
+    await within(vid.play(), 2500);
+    if (!vid.readyState) await within(new Promise(ok => vid.addEventListener("loadedmetadata", ok, { once: true })), 1500);
+    await within(vid.requestPictureInPicture(), 2500);
   } catch (e) {
     vid.srcObject = null; vid.remove(); vid = null; cv = null;
     throw e;
-  }
+  } finally { clearInterval(feed); }
   mode = "video";
   vid.addEventListener("leavepictureinpicture", onClosed, { once: true });
   try {
@@ -377,6 +397,56 @@ function openPopup() {
   return true;
 }
 
+// نافذة عايمة جوه الصفحة نفسها: بتشتغل على أي جهاز
+async function openInline() {
+  panel = document.createElement("div");
+  panel.id = "miniPanel";
+  panel.style.cssText = "position:fixed;left:12px;bottom:84px;z-index:50;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:#143d2c;border:1px solid #3d7a56;box-shadow:0 12px 34px rgba(0,0,0,.5)";
+  const bar = document.createElement("div");
+  bar.dir = "rtl";
+  bar.style.cssText = "display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:move;touch-action:none;user-select:none;color:#fff;font-size:13px";
+  const title = document.createElement("span");
+  title.textContent = "⠿ غابتي";
+  title.style.flex = "1";
+  const hb = (text, label) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; b.setAttribute("aria-label", label); b.style.cssText = "width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:15px;cursor:pointer"; return b; };
+  const size = hb("▁", "تصغير / تكبير"), x = hb("✕", "إغلاق النافذة");
+  bar.append(title, size, x);
+  const frame = document.createElement("iframe");
+  frame.title = "غابتي المصغّرة";
+  frame.style.cssText = "border:0;display:block";
+  let small = false;
+  const clamp = () => {
+    const r = panel.getBoundingClientRect();
+    panel.style.left = Math.max(0, Math.min(r.left, innerWidth - r.width)) + "px";
+    panel.style.top = Math.max(0, Math.min(r.top, innerHeight - r.height)) + "px";
+    panel.style.bottom = "auto";
+  };
+  const fit = () => {
+    frame.style.width = small ? "260px" : "min(300px, 92vw)";
+    frame.style.height = small ? "84px" : "min(500px, calc(100vh - 150px))";
+  };
+  size.onclick = () => { small = !small; size.textContent = small ? "▢" : "▁"; fit(); clamp(); };
+  x.onclick = closeMini;
+  bar.onpointerdown = e => {
+    if (e.target.closest("button")) return;
+    const r = panel.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    bar.setPointerCapture(e.pointerId);
+    bar.onpointermove = m => { panel.style.left = m.clientX - dx + "px"; panel.style.top = m.clientY - dy + "px"; panel.style.bottom = "auto"; clamp(); };
+    bar.onpointerup = bar.onpointercancel = () => { bar.onpointermove = null; };
+  };
+  fit();
+  const loaded = new Promise(ok => frame.addEventListener("load", ok, { once: true }));
+  frame.srcdoc = '<!doctype html><html lang="ar"><head></head><body></body></html>';
+  panel.append(bar, frame);
+  document.body.append(panel);
+  await within(loaded, 3000);
+  mode = "inline";
+  buildDomWindow(frame.contentWindow);
+  document.getElementById("miniModal")?.remove();
+  try { closeSheet(); } catch (e) {}
+  return true;
+}
+
 async function openMini() {
   if (isOpen()) { try { mode === "video" ? null : win.focus(); } catch (e) {} return; }
   if (!appReady()) { say("التطبيق لسه بيحمّل، جرّب تاني بعد ثانية."); return; }
@@ -385,18 +455,20 @@ async function openMini() {
   const tries = [];
   if (canDoc()) tries.push(openDoc);
   if (canVideo()) tries.push(openVideo);
-  tries.push(openPopup);
+  // على التابلت/الموبايل «النافذة المنبثقة» بتفتح تاب فاضي، فبنعرضها جوه الصفحة بدالها
+  if (!isTouch()) tries.push(openPopup);
+  tries.push(openInline);
   let err = null;
   for (const f of tries) {
-    try { if (await f()) { refreshModal(); return; } } catch (e) { err = e; mode = null; win = null; }
+    try { if (await f()) { refreshModal(); return; } } catch (e) { err = e; mode = null; win = null; panel?.remove(); panel = null; }
   }
-  say(err && err.message === "popup-blocked"
-    ? "المتصفح منع النافذة. اسمح بالنوافذ المنبثقة للموقع وجرّب تاني."
-    : "المتصفح منع فتح النافذة: " + (err?.message || err));
+  say("مقدرناش نفتح النافذة: " + (err?.message || err));
 }
 
 function onClosed() {
+  if (!mode) return;
   stopTicker();
+  panel?.remove(); panel = null;
   if (mode === "video") {
     try { vid.srcObject = null; vid.remove(); } catch (e) {}
     try { navigator.mediaSession.setActionHandler("play", null); navigator.mediaSession.setActionHandler("pause", null); navigator.mediaSession.playbackState = "none"; } catch (e) {}
@@ -413,49 +485,76 @@ function onClosed() {
 
 function closeMini() {
   try {
-    if (mode === "video") document.exitPictureInPicture();
+    if (mode === "inline") onClosed();
+    else if (mode === "video") document.exitPictureInPicture();
     else win?.close();
   } catch (e) {}
 }
 
 // طول ما النافذة مفتوحة، خروجك من التبويب ما يموّتش الشجرة
 document.addEventListener("visibilitychange", e => {
-  if (isOpen() && document.hidden && typeof S !== "undefined" && S.active && !S.active.pausedAt) e.stopImmediatePropagation();
+  if (keepsAlive() && document.hidden && typeof S !== "undefined" && S.active && !S.active.pausedAt) e.stopImmediatePropagation();
 }, true);
 window.addEventListener("pagehide", () => { if (mode !== "video") closeMini(); });
 
 /* ---------------- نافذة الإعدادات داخل التطبيق ---------------- */
-// الموبايل/سفاري: الوقت والصوت بيتحكم فيهم من هنا
-function videoControls(mk, btn) {
-  const wrap = mk("div", "display:flex;flex-direction:column;gap:8px");
-  wrap.id = "miniControls";
-  const line = () => mk("div", "display:flex;gap:8px;align-items:center");
-  const b = (text, fn) => { const e = mk("button", btn + ";background:#2f6b4a;color:#fff;flex:1", text); e.onclick = () => { fn(); refreshModal(); }; return e; };
-  const time = line();
-  time.append(b("−٥ دقايق", () => changeTime(-5)), b("+٥ دقايق", () => changeTime(5)));
-  const snd = mk("select", "width:100%");
-  [["none", "بدون صوت"], ["quran", "سورة البقرة 📖"], ["rain", "مطر 🌧️"], ["forest", "غابة 🐦"]].forEach(([v, n]) => {
-    const o = mk("option", "", n); o.value = v; snd.append(o);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+const mbtn = (cls, text, fn) => { const b = el("button", cls, text); b.type = "button"; b.onclick = fn; return b; };
+const card = title => { const c = el("section", "mm-card"); c.append(el("h3", "", title)); return c; };
+const MODAL_CSS = `
+#miniModal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;font-family:Cairo,system-ui,sans-serif}
+#miniModalBox{background:#143f31;color:#f4f1e4;width:100%;max-width:460px;max-height:90vh;max-height:90dvh;overflow:auto;border-radius:26px 26px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;border:1px solid rgba(255,255,255,.1)}
+@media (min-width:700px){#miniModal{align-items:center}#miniModalBox{border-radius:26px}}
+#miniModal button{font:inherit;color:inherit;border:0;cursor:pointer}
+#miniModal h2,#miniModal h3,#miniModal p{margin:0}
+.mm-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mm-head h2{font-size:18px}
+.mm-x{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1)}
+.mm-note{font-size:13px;line-height:1.8;color:#a9cdbb}
+.mm-main{padding:14px;border-radius:999px;font-weight:800;font-size:17px;background:#9be07a;color:#12351f!important;box-shadow:0 5px 0 #5da545}
+.mm-soft{padding:11px;border-radius:999px;font-weight:700;background:rgba(255,255,255,.1)}
+.mm-card{background:#1b5a45;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.mm-card h3{font-size:14px}
+.mm-themes{display:grid;grid-template-columns:repeat(5,1fr);gap:10px 4px}
+.mm-theme{background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px!important;line-height:1.4}
+.mm-theme i{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:800;border:2px solid rgba(255,255,255,.2)}
+.mm-theme.on i{border-color:#9be07a;box-shadow:0 0 0 3px rgba(155,224,122,.4)}
+.mm-line{display:flex;gap:8px;align-items:center}
+.mm-line>*{flex:1}
+.mm-snd{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mm-snd button{padding:8px 0;border-radius:14px;background:rgba(0,0,0,.22);font-size:12px;border:2px solid transparent}
+.mm-snd button.on{border-color:#9be07a;background:rgba(155,224,122,.18)}
+.mm-snd span{display:block;font-size:20px}
+#miniModal input[type=range]{accent-color:#9be07a;direction:ltr;min-width:0}
+`;
+
+// فيديو PiP (آيباد/سفاري): مفيش أزرار جوه النافذة، فالوقت والصوت من هنا
+function videoControls() {
+  const c = card("الوقت والصوت");
+  c.id = "miniControls";
+  const again = fn => () => { fn(); refreshModal(); };
+  const time = el("div", "mm-line");
+  time.append(mbtn("mm-soft", "−٥ دقايق", again(() => changeTime(-5))), mbtn("mm-soft", "+٥ دقايق", again(() => changeTime(5))));
+  const snd = el("div", "mm-snd");
+  SOUNDS.forEach(([v, icon, name]) => {
+    const b = mbtn(S.sound === v ? "on" : "", "", again(() => setSound(v)));
+    b.append(el("span", "", icon), name);
+    snd.append(b);
   });
-  snd.value = S.sound;
-  snd.onchange = () => setSound(snd.value);
-  const vol = mk("input", "flex:1;direction:ltr");
+  const vl = el("div", "mm-line");
+  const mu = mbtn("mm-x", muted ? "🔇" : "🔊", again(toggleMute));
+  mu.style.flex = "none";
+  const vol = el("input");
   vol.type = "range"; vol.min = 0; vol.max = 100; vol.step = 5; vol.value = Math.round((S.vol ?? 1) * 100);
   vol.oninput = () => setVolume(vol.value / 100);
-  const mu = b(muted ? "🔇" : "🔊", toggleMute);
-  mu.style.flex = "none";
-  const v = line();
-  v.append(mu, vol);
-  wrap.append(time, snd, v);
-  return wrap;
+  vl.append(mu, vol);
+  c.append(time, snd, vl, el("small", "mm-note"));
+  return c;
 }
 // ملاحظات الأوامر (زي «مينفعش تقلّل») تظهر في اللوحة
 function refreshControls() {
-  const wrap = document.getElementById("miniControls");
-  if (!wrap) return;
-  let n = wrap.querySelector("small");
-  if (!n) { n = document.createElement("small"); wrap.append(n); }
-  if (n.textContent !== note) n.textContent = note;
+  const n = document.querySelector("#miniControls small");
+  if (n && n.textContent !== note) n.textContent = note;
 }
 function refreshModal() {
   const box = document.getElementById("miniModalBox");
@@ -463,58 +562,48 @@ function refreshModal() {
 }
 
 function fillModal(box) {
+  const top = box.scrollTop;
   box.innerHTML = "";
-  const mk = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text) e.textContent = text; return e; };
-  const btn = "padding:12px;border-radius:12px;border:0;font:inherit;font-weight:700;cursor:pointer";
+  const head = el("div", "mm-head");
+  head.append(el("h2", "", "🪟 غابتي المصغّرة"), mbtn("mm-x", "✕", () => document.getElementById("miniModal")?.remove()));
+  box.append(head, el("p", "mm-note", "الشجرة والتايمر والتحكم في الوقت والصوت في نافذة صغيرة."));
 
-  box.append(mk("h2", "margin:0", "🪟 غابتي المصغّرة"));
-  box.append(mk("div", "line-height:1.7;opacity:.9",
-    "نسخة صغيرة من الموقع (الشجرة والتايمر والتحكم في الوقت والصوت) فوق أي برنامج تاني، فتقدر تشغّل فيديو المذاكرة والشجرة تفضل عايشة. لو صغّرتها خالص بيفضل التايمر وزرين."));
-  if (!canDoc() && canVideo()) box.append(mk("div", "color:#9be07a;line-height:1.7",
-    "هتظهر نافذة عايمة (صورة داخل صورة) فيها الشجرة والتايمر، وزرار الإيقاف/التشغيل بتاعها بيتحكم في الجلسة. المتصفح ده مبيسمحش بأزرار تانية جواها، فالوقت والصوت من هنا."));
-  else if (!canDoc()) box.append(mk("div", "color:#f2c94c;line-height:1.7",
-    "متصفحك مش بيدعم النافذة العايمة فوق التطبيقات (جرّب Chrome أو Edge أو Safari حديث). هتفتح نافذة عادية صغيرة بدالها، ومش هتفضل فوق باقي البرامج."));
+  box.append(mbtn("mm-main", isOpen() ? "النافذة مفتوحة ✔" : "افتح النافذة", async () => { await openMini(); refreshModal(); }));
+  if (!canDoc()) box.append(el("p", "mm-note", canVideo()
+    ? "على الجهاز ده النافذة العايمة بتعرض الشجرة والتايمر وزرار إيقاف/تشغيل بس. باقي التحكم من هنا."
+    : isTouch()
+      ? "المتصفح ده مش بيسمح بنافذة فوق التطبيقات، فهتظهر جوه الصفحة. عشان تذاكر من فيديو استخدم تقسيم الشاشة، لأن الخروج من المتصفح بيموّت الشجرة."
+      : "المتصفح ده مش بيدعم النافذة اللي فوق البرامج، فهتفتح نافذة عادية."));
+  if (isOpen() && mode === "video") box.append(videoControls());
+  if (isOpen()) box.append(mbtn("mm-soft", "إغلاق النافذة", () => { closeMini(); setTimeout(refreshModal, 100); }));
 
-  box.append(mk("div", "", "اختار الشكل:"));
-  const grid = mk("div", "display:grid;grid-template-columns:repeat(3,1fr);gap:8px");
+  const looks = card("شكل النافذة"), grid = el("div", "mm-themes");
   BGS.forEach(([name, bg, fg], i) => {
-    const b = mk("button", `padding:10px 4px;border-radius:10px;cursor:pointer;font:inherit;font-weight:700;background:${bg};color:${fg};border:2px solid ${i === bgIdx ? "#9be07a" : "#3d7a56"}`);
-    b.append(mk("div", "font-size:16px;direction:ltr", "25:00"), mk("div", "font-size:11px;font-weight:400;margin-top:2px", name));
-    b.onclick = () => {
+    const b = mbtn("mm-theme" + (i === bgIdx ? " on" : ""), "", () => {
       bgIdx = i;
       try { localStorage.setItem(LS, JSON.stringify({ theme: i })); } catch (e) {}
       paint();
-      fillModal(box);
-    };
+      refreshModal();
+    });
+    const dot = el("i", "", i === 0 ? "🌳" : "25");
+    dot.style.background = bg; dot.style.color = fg;
+    b.append(dot, name);
     grid.append(b);
   });
-  box.append(grid);
-  box.append(mk("small", "opacity:.8;line-height:1.6",
-    "نافذة المتصفح نفسها مش ممكن تبقى شفافة، لكن «مخفي» بيخلّي الأرقام باهتة جدًا على خلفية سادة. اسحب النافذة لأي ركن، وتقدر تصغّرها."));
-
-  const open = mk("button", btn + ";background:#9be07a;color:#0e2a1e", isOpen() ? "النافذة مفتوحة ✔ (اضغط لإحضارها)" : "🪟 افتح النافذة");
-  open.onclick = async () => { await openMini(); fillModal(box); };
-  box.append(open);
-  if (isOpen() && mode === "video") box.append(videoControls(mk, btn));
-  if (isOpen()) {
-    const close = mk("button", btn + ";background:#2f6b4a;color:#fff", "إغلاق النافذة الصغيرة");
-    close.onclick = () => { closeMini(); setTimeout(() => fillModal(box), 100); };
-    box.append(close);
-  }
-  const x = mk("button", btn + ";background:transparent;color:#fff;border:1px solid #3d7a56", "إغلاق");
-  x.onclick = () => document.getElementById("miniModal")?.remove();
-  box.append(x);
+  looks.append(grid);
+  box.append(looks);
+  box.scrollTop = top;
 }
 
 function openModal() {
   document.getElementById("miniModal")?.remove();
-  const wrap = document.createElement("div");
-  wrap.id = "miniModal";
-  wrap.dir = "rtl";
-  wrap.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit";
-  const box = document.createElement("div");
-  box.id = "miniModalBox";
-  box.style.cssText = "background:#143d2c;color:#fff;border:1px solid #3d7a56;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:10px";
+  if (!document.getElementById("miniModalCss")) {
+    const st = el("style", "", MODAL_CSS);
+    st.id = "miniModalCss";
+    document.head.append(st);
+  }
+  const wrap = el("div"), box = el("div");
+  wrap.id = "miniModal"; wrap.dir = "rtl"; box.id = "miniModalBox";
   wrap.append(box);
   wrap.addEventListener("click", e => { if (e.target === wrap) wrap.remove(); });
   document.body.append(wrap);
